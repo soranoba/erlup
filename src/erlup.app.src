@@ -1,0 +1,10 @@
+%% vim: set filetype=erlang : -*- erlang -*-
+{application, erlup,
+ [{description,"Upgrade tools for Erlang/OTP"},
+  {vsn, git},
+  {registered,[]},
+  {applications,[kernel,stdlib]},
+  {maintainers, ["Hinagiku Soranoba"]},
+  {licenses,["MIT"]},
+  {links,[{"GitHub","https://github.com/soranoba/erlup"}]},
+  {env,[]}]}.
