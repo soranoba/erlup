@@ -1,34 +1,85 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
-
+%%
+%% @doc erlup configure.
+%% @private
 -module(erlup_state).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         applys/1,
+         new/1,
+         applys/2,
          mod_deps/1,
-         extra/1
+         extra/2,
+         set_sedargs/3
         ]).
+
+-export_type([t/0]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Macros and Types
 %%----------------------------------------------------------------------------------------------------------------------
 
--type t() :: term().
+-record(?MODULE,
+        {
+          applys        :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
+          deps          :: [{module(), ModDeps :: [module()]}],
+          extra         :: {UpExtra :: term(), DownExtra :: term()},
+          sed_args = [] :: [{Before :: term(), After :: term()}]
+        }).
+-opaque t() :: #?MODULE{}.
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
--spec applys(t()) -> [{Function :: atom(), Args :: [term()]}].
-applys(_) ->
-    [].
+%% @doc
+-spec new([{atom(), term()}]) -> t().
+new(List) ->
+    Appup   = proplists:get_value(appup, List, []),
+    Applys  = proplists:get_value(applys, Appup, []),
+    ModDeps = proplists:get_value(deps,   Appup, []),
+    Extra   = proplists:get_value(extra,  Appup, {[], []}),
+    #?MODULE{applys = Applys, deps = ModDeps, extra = Extra}.
+
+-spec applys(up | down, t()) -> [{Function :: atom(), Args :: [term()]}].
+applys(up, #?MODULE{applys = Applys, sed_args = SedArgs}) ->
+    [{Function, sed(Args, SedArgs)} || {Function, Args, _} <- Applys];
+applys(down, #?MODULE{applys = Applys, sed_args = SedArgs}) ->
+    [{Function, sed(Args, SedArgs)} || {Function, _, Args} <- Applys].
 
 -spec mod_deps(t()) -> [{module(), Deps :: [module()]}].
-mod_deps(_) ->
-    [].
+mod_deps(#?MODULE{deps = Deps}) ->
+    Deps.
 
--spec extra(t()) -> term().
-extra(_) ->
-    [].
+-spec extra(up | down, t()) -> term().
+extra(up, #?MODULE{extra = {Extra, _}, sed_args = SedArgs}) ->
+    sed(Extra, SedArgs);
+extra(down, #?MODULE{extra = {_, Extra}, sed_args = SedArgs}) ->
+    sed(Extra, SedArgs).
+
+-spec set_sedargs(term(), term(), t()) -> t().
+set_sedargs(Before, After, #?MODULE{sed_args = SedArgs} = State) ->
+    State#?MODULE{sed_args = [{Before, After} | proplists:delete(Before, SedArgs)]}.
+
+%%----------------------------------------------------------------------------------------------------------------------
+%% Internal Functions
+%%----------------------------------------------------------------------------------------------------------------------
+
+%% @doc It replace terms recursively.
+-spec sed(term(), [{term(), term()}]) -> term().
+sed(Term, SedList) ->
+    case proplists:lookup(Term, SedList) of
+        none   -> sed_1(Term, SedList);
+        {_, X} -> X
+    end.
+
+%% @see sed/2
+-spec sed_1(term(), [{term(), term()}]) -> term().
+sed_1(List, SedList) when is_list(List) ->
+    lists:map(fun(X) -> sed(X, SedList) end, List);
+sed_1(Tuple, SedList) when is_tuple(Tuple) ->
+    list_to_tuple(sed(tuple_to_list(Tuple), SedList));
+sed_1(Other, _SedList) ->
+    Other.
