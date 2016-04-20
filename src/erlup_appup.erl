@@ -22,6 +22,9 @@
 %%----------------------------------------------------------------------------------------------------------------------
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
+-export([
+         do/4
+        ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'provider' Callback API
@@ -34,12 +37,28 @@
 
 -type instruction() :: tuple().
 
--define(INFO(Format, Args),  rebar_api:info("[erlup_appup] " ++ Format, Args)).
--define(DEBUG(Format, Args), rebar_api:debug("[erlup_appup] " ++ Format, Args)).
--define(WARN(Format, Args),  rebar_api:warn("[erlup_appup] " ++ Format, Args)).
--define(ERROR(Format, Args), rebar_api:error("[erlup_appup] " ++ Format, Args)).
+%%----------------------------------------------------------------------------------------------------------------------
+%% Exported Functions
+%%----------------------------------------------------------------------------------------------------------------------
 
--define(throw(Msg), throw({error, {?MODULE, Msg}})).
+%% @doc Automatically generate the .appup files from the beam file.
+-spec do(file:filename(), string(), string(), erlup_state:t()) -> ok.
+do([Dir | _], PreviousVsn, CurrentVsn, State0) ->
+    ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
+    State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
+                        State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
+    Fun = fun(Vsn) ->
+                  case erlup_utils:vsn_libs(Dir, Vsn) of
+                      {ok, AppVsns} ->
+                          [begin
+                               EbinDir = filename:join([Dir, "lib", atom_to_list(App) ++ "-" ++ AppVsn, "ebin"]),
+                               {App, AppVsn, EbinDir}
+                           end || {App, AppVsn} <- AppVsns];
+                      {error, Reason} ->
+                          ?throw(Reason)
+                  end
+          end,
+    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'provider' Callback Functions
@@ -72,12 +91,12 @@ do(State) ->
                        _                                      -> ?throw("Release name is unknown.")
                    end
            end,
-    Dir  = filename:join([rebar_dir:base_dir(State), "rel", Name]),
+    Dir         = filename:join([rebar_dir:base_dir(State), "rel", Name]),
     CurrentVsn  = proplists:get_value(current,  Opts ++ [{current, default_current_vsn(Dir)}]),
     PreviousVsn = proplists:get_value(previous, Opts ++ [{previous, default_previous_vsn(Dir, CurrentVsn)}]),
     CurrentVsn  =:= [] andalso ?throw("Current vsn is unknown. Please run ./rebar3 release"),
     PreviousVsn =:= [] andalso ?throw("Previous vsn is unknown"),
-    do_1(Dir, PreviousVsn, CurrentVsn, erlup_state:new(rebar_state:get(State, erlup, []))),
+    do([Dir], PreviousVsn, CurrentVsn, erlup_state:new(rebar_state:get(State, erlup, []))),
     {ok, State}.
 
 %% @private
@@ -115,23 +134,6 @@ default_previous_vsn(Dir, CurrentVsn) ->
         [PreviousVsn | _] -> PreviousVsn;
         []                -> ""
     end.
-
-do_1(Dir, PreviousVsn, CurrentVsn, State0) ->
-    ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
-    State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
-                        State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
-    Fun = fun(Vsn) ->
-                  case erlup_utils:vsn_libs(Dir, Vsn) of
-                      {ok, AppVsns} ->
-                          [begin
-                               EbinDir = filename:join([Dir, "lib", atom_to_list(App) ++ "-" ++ AppVsn, "ebin"]),
-                               {App, AppVsn, EbinDir}
-                           end || {App, AppVsn} <- AppVsns];
-                      {error, Reason} ->
-                          ?throw(Reason)
-                  end
-          end,
-    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State).
 
 rewrite_appups([], _, _) ->
     ok;

@@ -13,12 +13,6 @@
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
-%% Macros
-%%----------------------------------------------------------------------------------------------------------------------
-
--define(print_error(Format, Args), io:format(standard_error, Format ++ "~n", Args)).
-
-%%----------------------------------------------------------------------------------------------------------------------
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
@@ -32,21 +26,34 @@ init(State0) ->
 
 %% escript.
 main(Args) ->
+    init_log(),
     case getopt:parse(escript_opt_specs(), Args) of
         {ok, {Options, _}} ->
             DoHelp  = proplists:get_value(help, Options, false),
-            Command = proplists:get_value(command, Options, ""),
-            case escript_opt_specs(Command) of
+            Task = proplists:get_value(task, Options, ""),
+            case escript_opt_specs(Task) of
                 [] ->
-                    ?print_error("Command ~s not found", [Command]), halt(1);
-                Specs when DoHelp; Command =:= "" ->
-                    getopt:usage(Specs, "erlup" ++ ?IIF(Command == "", "", " " ++ Command)),
+                    ?ERROR("Task ~s not found", [Task]), halt(1);
+                Specs when DoHelp; Task =:= "" ->
+                    case Task =:= "" of
+                        true ->
+                            getopt:usage(Specs, "erlup"),
+                            providers:help(rebar_state:providers(element(2, init(rebar_state:new()))));
+                        false ->
+                            getopt:usage(Specs, "erlup" ++ " " ++ Task)
+                    end,
                     halt(0);
                 _ ->
-                    do_command(Command, Options)
+                    try
+                        do_task(Task, Options)
+                    catch
+                        throw:{error, {Module, Str}} when is_atom(Module) ->
+                            ?ERROR("~s", [Module:format_error(Str)]),
+                            halt(1)
+                    end
             end;
         {error, Reason} ->
-            ?print_error("~s", [getopt:format_error(escript_opt_specs(), Reason)]),
+            ?ERROR("~s", [getopt:format_error(escript_opt_specs(), Reason)]),
             halt(1)
     end,
     halt(0).
@@ -55,27 +62,59 @@ main(Args) ->
 %% Internal Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
--spec do_command(string(), [{atom(), term()}]) -> ok.
-do_command("appup", Options) ->
-    _Previous = proplists:get_value(previous, Options, "."),
-    _Current  = proplists:get_value(current,  Options, "."),
+-spec init_log() -> ok.
+init_log() ->
+    LogLevel = case os:getenv("QUIET") of
+                   false ->
+                       DefaultLevel = rebar_log:default_level(),
+                       case os:getenv("DEBUG") of
+                           false -> DefaultLevel;
+                           _     -> DefaultLevel + 3
+                       end;
+                   _ ->
+                       rebar_log:error_level()
+               end,
+    rebar_log:init(command_line, LogLevel).
+
+-spec do_task(string(), [{atom(), term()}]) -> ok.
+do_task(Task, Options) ->
+    ConfPath  = proplists:get_value(conf, Options, "erlup.config"),
+    ErlupConf = case file:consult(ConfPath) of
+                    {ok, Terms} ->
+                        case proplists:lookup(erlup, Terms) of
+                            none            -> Terms;
+                            {_, ErlupConf0} -> ErlupConf0
+                        end;
+                    {error, Reason} ->
+                        ?WARN("~s", [file:format_error(Reason) ++ " " ++ ConfPath]),
+                        []
+                end,
+    do_task(Task, Options, erlup_state:new(ErlupConf)).
+
+do_task("appup", Options, State) ->
+    Previous = proplists:get_value(previous, Options, ""),
+    Current  = proplists:get_value(current,  Options, ""),
+    Dirs     = binary:split(proplists:get_value(dirs, Options, <<>>), <<",">>, [trim, global]),
+    erlup_appup:do(Dirs, Previous, Current, State),
     ok.
 
 -spec escript_opt_specs() -> [getopt:option_spec()].
 escript_opt_specs() ->
     [
+     { task, undefined,  undefined,    string, "Task to run"},
      {    help,        $h,  undefined, undefined, "Display this help"},
-     { command, undefined,  undefined,    string, "Command to run"},
-     { current,        $c,  "current",    string, "Directory of the previous release"},
-     {previous,        $p, "previous",    string, "Directory of the previous release"}
+     {    conf, undefined,     "conf",    string, "Path of configuration file [default: erlup.conf]"},
+     { current,        $c,  undefined,    string, "Vsn of the current release"},
+     {previous,        $p,  undefined,    string, "Vsn of the previous release"},
+     {    dirs, undefined,      "dir",    binary, "List of release directory (e.g. rel/${APP})"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].
-escript_opt_specs(Command) ->
-    lists:filter(fun(X) -> lists:member(element(1, X), command_opts(Command)) end,
+escript_opt_specs(Task) ->
+    lists:filter(fun(X) -> lists:member(element(1, X), task_opts(Task)) end,
                  escript_opt_specs()).
 
--spec command_opts(Command :: string()) -> [OptKey :: atom()].
-command_opts("appup") -> [current, previous];
-command_opts("")      -> [help, command];
-command_opts(_)       -> []. % not supported
+-spec task_opts(Task :: string()) -> [OptKey :: atom()].
+task_opts("appup") -> [current, previous, conf, dirs, help];
+task_opts("")      -> [help, task, conf];
+task_opts(_)       -> []. % not supported
