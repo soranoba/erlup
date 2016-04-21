@@ -1,4 +1,5 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
+%% @private
 
 -module(erlup_utils).
 

@@ -1,4 +1,6 @@
-all: escriptize
+all: compile eunit escriptize doc
+
+.PHONY: doc
 
 escriptize:
 	@./rebar3 as escript escriptize
@@ -9,3 +11,6 @@ compile:
 
 eunit:
 	@./rebar3 eunit
+
+doc:
+	@./rebar3 as dev edoc

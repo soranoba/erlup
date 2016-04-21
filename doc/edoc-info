@@ -1,0 +1,4 @@
+%% encoding: UTF-8
+{application,erlup}.
+{packages,[]}.
+{modules,[erlup,erlup_appup]}.

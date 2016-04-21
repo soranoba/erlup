@@ -1,6 +1,16 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 %%
-
+%% @doc A escript to support the upgrade and downgrade of OTP application.
+%%
+%% ### Log level
+%% It use `rebar_log'.
+%% So, you can be set in the same manner as in the rebar3.
+%%
+%% ```bash
+%% $ QUIET=1 erlup    # silent mode
+%% $ DEBUG=1 erlup    # debug mode
+%% '''
+%%
 -module(erlup).
 
 -include("erlup.hrl").
@@ -17,6 +27,8 @@
 %%----------------------------------------------------------------------------------------------------------------------
 
 %% rebar3 plugins.
+%%
+%% @private
 -spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
 init(State0) ->
     Mods = [
@@ -25,6 +37,8 @@ init(State0) ->
     lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end, {ok, State0}, Mods).
 
 %% escript.
+%%
+%% @private
 main(Args) ->
     init_log(),
     case getopt:parse(escript_opt_specs(), Args) of
@@ -91,6 +105,7 @@ do_task(Task, Options) ->
                 end,
     do_task(Task, Options, erlup_state:new(ErlupConf)).
 
+-spec do_task(string(), [{atom(), term()}], erlup_state:t()) -> ok.
 do_task("appup", Options, State) ->
     Previous = proplists:get_value(previous, Options),
     Current  = proplists:get_value(current,  Options),
