@@ -1,6 +1,7 @@
 erlup
 ========
 [![hex.pm version](https://img.shields.io/hexpm/v/erlup.svg)](https://hex.pm/packages/erlup)
+
 Upgrade tools for Erlang/OTP. Contains rebar3 plugin and escript.
 
 ## Overview

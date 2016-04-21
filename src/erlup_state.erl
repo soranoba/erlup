@@ -12,7 +12,9 @@
          applys/2,
          mod_deps/1,
          extra/2,
-         set_sedargs/3
+         set_sedargs/3,
+         get_rels/1,
+         set_rels/2
         ]).
 
 -export_type([t/0]).
@@ -26,7 +28,8 @@
           applys        :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
           deps          :: [{module(), ModDeps :: [module()]}],
           extra         :: {UpExtra :: term(), DownExtra :: term()},
-          sed_args = [] :: [{Before :: term(), After :: term()}]
+          sed_args = [] :: [{Before :: term(), After :: term()}],
+          rels          :: [{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}] | undefined
         }).
 -opaque t() :: #?MODULE{}.
 
@@ -62,6 +65,14 @@ extra(down, #?MODULE{extra = {_, Extra}, sed_args = SedArgs}) ->
 -spec set_sedargs(term(), term(), t()) -> t().
 set_sedargs(Before, After, #?MODULE{sed_args = SedArgs} = State) ->
     State#?MODULE{sed_args = [{Before, After} | proplists:delete(Before, SedArgs)]}.
+
+-spec get_rels(t()) -> [{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}] | undefined.
+get_rels(#?MODULE{rels = Rels}) ->
+    Rels.
+
+-spec set_rels([{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}], t()) -> t().
+set_rels(Rels, State) ->
+    State#?MODULE{rels = Rels}.
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions

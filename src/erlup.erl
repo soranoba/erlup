@@ -107,10 +107,17 @@ do_task(Task, Options) ->
 
 -spec do_task(string(), [{atom(), term()}], erlup_state:t()) -> ok.
 do_task("appup", Options, State) ->
-    Previous = proplists:get_value(previous, Options),
-    Current  = proplists:get_value(current,  Options),
-    Dirs     = [binary_to_list(X) || X <- binary:split(proplists:get_value(dirs, Options), <<",">>, [trim, global])],
-    erlup_appup:do(Dirs, Previous, Current, State),
+    CurrentVsn   = proplists:get_value(current, Options),
+    PreviousVsns = [erlup_utils:to_string(X)
+                    || X <- binary:split(proplists:get_value(previous, Options), <<",">>, [trim, global])],
+    Dirs         = [erlup_utils:to_string(X)
+                    || X <- binary:split(proplists:get_value(dirs, Options), <<",">>, [trim, global])],
+    case {CurrentVsn, PreviousVsns} of
+        {undefined, []} -> erlup_appup:do(Dirs, State);
+        {undefined, _}  -> erlup_appup:do(Dirs, PreviousVsns, State);
+        {_,         []} -> erlup_appup:do(Dirs, CurrentVsn, State);
+        _               -> erlup_appup:do(Dirs, PreviousVsns, CurrentVsn, State)
+    end,
     ok.
 
 -spec escript_opt_specs() -> [getopt:option_spec()].
@@ -119,8 +126,8 @@ escript_opt_specs() ->
      {    task, undefined,  undefined,                 string, "Task to run"},
      {    help,        $h,  undefined,              undefined, "Display this help"},
      {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file [default: erlup.conf]"},
-     { current,        $c,  undefined,                 string, "Vsn of the current release"},
-     {previous,        $p,  undefined,                 string, "Vsn of the previous release"},
+     { current,        $c,  undefined,                 string, "Vsn of current release"},
+     {previous,        $p,  undefined,         {binary, <<>>}, "List of previous vsn"},
      {    dirs, undefined,      "dir",      {binary, <<".">>}, "List of release directory (e.g. rel/${APP})"}
     ].
 

@@ -23,7 +23,7 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         do/4
+         do/2, do/3, do/4
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -41,17 +41,53 @@
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
+%% @see do/4
+%% @private
+-spec do([Dir :: file:filename_all()], erlup_state:t()) -> ok.
+do([Dir|_] = Dirs, State) ->
+    case erlup_utils:lookup_current_vsn(Dir) of
+        {ok, CurrentVsn} -> do(Dirs, CurrentVsn, State);
+        {error, Reason}  -> ?throw(Reason)
+    end.
+
+%% @see do/4
+%% @private
+-spec do([Dir :: file:filename_all()], string() | [string()], erlup_state:t()) -> ok.
+do(_, [], _) ->
+    ?throw("Current Vsn is empty.");
+do([Dir|_] = Dirs, [P|_] = PreviousVsns, State) when is_list(P) ->
+    case erlup_utils:lookup_current_vsn(Dir) of
+        {ok, CurrentVsn} -> do(Dirs, CurrentVsn, PreviousVsns, State);
+        {error, Reason}  -> ?throw(Reason)
+    end;
+do(Dirs, CurrentVsn, State) ->
+    Rels    = erlup_utils:find_rels(Dirs),
+    RelName = lookup_relname(CurrentVsn, Rels),
+    Vsns    = [Vsn || {N, Vsn, _} <- Rels, RelName =:= N, Vsn =/= CurrentVsn],
+    case Vsns of
+        []           -> ?throw("Can not find a different version than the current");
+        PreviousVsns -> do(Dirs, PreviousVsns, CurrentVsn, erlup_state:set_rels(Rels, State))
+    end.
+
 %% @doc Automatically generate the .appup files from the beam file.
 %% @private
--spec do([file:filename()], string(), string(), erlup_state:t()) -> ok.
+-spec do([file:filename()], string() | [string()], string(), erlup_state:t()) -> ok.
+do(Dirs, [X | _] = PreviousVsns, CurrentVsn, State0) when is_list(X) ->
+    lists:foreach(fun(P) -> do(Dirs, P, CurrentVsn, State0) end, PreviousVsns);
 do(Dirs, PreviousVsn, CurrentVsn, State0) ->
     ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
-    State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
-                        State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
+    State1 = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
+                         State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
+    State2 = case erlup_state:get_rels(State1) of
+                 undefined -> erlup_state:set_rels(Rels = erlup_utils:find_rels(Dirs), State1);
+                 Rels      -> State1
+             end,
+
     Fun = fun(Vsn) ->
-                  case erlup_utils:find_rel(Dirs, Vsn) of
-                      {ok, RelFile} ->
-                          case erlup_utils:vsn_libs(RelFile) of
+                  case lists:keyfind(Vsn, 2, Rels) of
+                      false           -> ?throw("Can not find a rel file. (" ++ Vsn ++ ")");
+                      {_, _, RelFile} ->
+                          case erlup_utils:lookup_include_libs(RelFile) of
                               {ok, AppVsns} ->
                                   [begin
                                        EbinDir = filename:join([erlup_utils:base_dir(RelFile), "lib",
@@ -60,12 +96,10 @@ do(Dirs, PreviousVsn, CurrentVsn, State0) ->
                                    end || {App, AppVsn} <- AppVsns];
                               {error, Reason} ->
                                   ?throw(Reason)
-                          end;
-                      {error, Reason} ->
-                          ?throw(Reason)
+                          end
                   end
           end,
-    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State).
+    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State2).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'provider' Callback Functions
@@ -98,12 +132,17 @@ do(State) ->
                        _                                      -> ?throw("Release name is unknown.")
                    end
            end,
-    Dir         = filename:join([rebar_dir:base_dir(State), "rel", Name]),
-    CurrentVsn  = proplists:get_value(current,  Opts ++ [{current, erlup_utils:default_current_vsn(Dir)}]),
-    PreviousVsn = proplists:get_value(previous, Opts ++ [{previous, erlup_utils:default_previous_vsn(Dir, CurrentVsn)}]),
-    CurrentVsn  =:= [] andalso ?throw("Current vsn is unknown. Please run ./rebar3 release"),
-    PreviousVsn =:= [] andalso ?throw("Previous vsn is unknown"),
-    do([Dir], PreviousVsn, CurrentVsn, erlup_state:new(rebar_state:get(State, erlup, []))),
+    Dir          = filename:join([rebar_dir:base_dir(State), "rel", Name]),
+    CurrentVsn   = proplists:get_value(current,  Opts, undefined),
+    PreviousVsns = [erlup_utils:to_string(X)
+                    || X <- binary:split(proplists:get_value(previous, Opts), <<",">>, [trim, global])],
+    ErlupState   = erlup_state:new(rebar_state:get(State, erlup, [])),
+    case {CurrentVsn, PreviousVsns} of
+        {undefined, []} -> do([Dir], ErlupState);
+        {undefined, _}  -> do([Dir], PreviousVsns, ErlupState);
+        {_,         []} -> do([Dir], CurrentVsn,   ErlupState);
+        _               -> do([Dir], PreviousVsns, CurrentVsn, ErlupState)
+    end,
     {ok, State}.
 
 %% @private
@@ -118,9 +157,17 @@ format_error(Reason) ->
 -spec opts() -> [getopt:option_spec()].
 opts() ->
     [
-     {previous, $p, undefined, string, "Previous vsn"},
-     {current,  $c, undefined, string, "Current vsn"}
+     {previous, $p, undefined, {binary, <<>>}, "List of previous vsn"},
+     {current,  $c, undefined,         string, "Current vsn"}
     ].
+
+%% @doc Lookup the relname from the rel file.
+-spec lookup_relname(string(), file:filename_all()) -> string().
+lookup_relname(Vsn, Rels) ->
+    case lists:keyfind(Vsn, 2, Rels) of
+        false           -> ?throw("Can not find a rel file. (" ++ Vsn ++ ")");
+        {RelName, _, _} -> RelName
+    end.
 
 rewrite_appups([], _, _) ->
     ok;
