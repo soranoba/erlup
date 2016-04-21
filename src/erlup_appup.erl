@@ -9,9 +9,9 @@
 %%
 %% ### Usage
 %%
-%% ```bash
-%% $ rebar3 help erlup appup  # If you use the rebar3.
-%% $ erlup appup -h           # If you use the escript.
+%% ```
+%% $ rebar3 help erlup appup  # using rebar3.
+%% $ erlup appup -h           # using escript.
 %% '''
 %%
 -module(erlup_appup).
@@ -42,6 +42,7 @@
 %%----------------------------------------------------------------------------------------------------------------------
 
 %% @doc Automatically generate the .appup files from the beam file.
+%% @private
 -spec do([file:filename()], string(), string(), erlup_state:t()) -> ok.
 do(Dirs, PreviousVsn, CurrentVsn, State0) ->
     ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),

@@ -16,7 +16,6 @@ It use `rebar_log`.
 So, you can be set in the same manner as in the rebar3.
 
 ```
-     bash
   $ QUIET=1 erlup    # silent mode
   $ DEBUG=1 erlup    # debug mode
 ```
