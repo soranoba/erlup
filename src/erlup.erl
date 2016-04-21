@@ -78,7 +78,7 @@ init_log() ->
 
 -spec do_task(string(), [{atom(), term()}]) -> ok.
 do_task(Task, Options) ->
-    ConfPath  = proplists:get_value(conf, Options, "erlup.config"),
+    ConfPath  = proplists:get_value(conf, Options),
     ErlupConf = case file:consult(ConfPath) of
                     {ok, Terms} ->
                         case proplists:lookup(erlup, Terms) of
@@ -92,21 +92,21 @@ do_task(Task, Options) ->
     do_task(Task, Options, erlup_state:new(ErlupConf)).
 
 do_task("appup", Options, State) ->
-    Previous = proplists:get_value(previous, Options, ""),
-    Current  = proplists:get_value(current,  Options, ""),
-    Dirs     = binary:split(proplists:get_value(dirs, Options, <<>>), <<",">>, [trim, global]),
+    Previous = proplists:get_value(previous, Options),
+    Current  = proplists:get_value(current,  Options),
+    Dirs     = [binary_to_list(X) || X <- binary:split(proplists:get_value(dirs, Options), <<",">>, [trim, global])],
     erlup_appup:do(Dirs, Previous, Current, State),
     ok.
 
 -spec escript_opt_specs() -> [getopt:option_spec()].
 escript_opt_specs() ->
     [
-     { task, undefined,  undefined,    string, "Task to run"},
-     {    help,        $h,  undefined, undefined, "Display this help"},
-     {    conf, undefined,     "conf",    string, "Path of configuration file [default: erlup.conf]"},
-     { current,        $c,  undefined,    string, "Vsn of the current release"},
-     {previous,        $p,  undefined,    string, "Vsn of the previous release"},
-     {    dirs, undefined,      "dir",    binary, "List of release directory (e.g. rel/${APP})"}
+     {    task, undefined,  undefined,                 string, "Task to run"},
+     {    help,        $h,  undefined,              undefined, "Display this help"},
+     {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file [default: erlup.conf]"},
+     { current,        $c,  undefined,                 string, "Vsn of the current release"},
+     {previous,        $p,  undefined,                 string, "Vsn of the previous release"},
+     {    dirs, undefined,      "dir",      {binary, <<".">>}, "List of release directory (e.g. rel/${APP})"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].

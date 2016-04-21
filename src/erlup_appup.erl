@@ -42,18 +42,24 @@
 %%----------------------------------------------------------------------------------------------------------------------
 
 %% @doc Automatically generate the .appup files from the beam file.
--spec do(file:filename(), string(), string(), erlup_state:t()) -> ok.
-do([Dir | _], PreviousVsn, CurrentVsn, State0) ->
+-spec do([file:filename()], string(), string(), erlup_state:t()) -> ok.
+do(Dirs, PreviousVsn, CurrentVsn, State0) ->
     ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
     State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
                         State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
     Fun = fun(Vsn) ->
-                  case erlup_utils:vsn_libs(Dir, Vsn) of
-                      {ok, AppVsns} ->
-                          [begin
-                               EbinDir = filename:join([Dir, "lib", atom_to_list(App) ++ "-" ++ AppVsn, "ebin"]),
-                               {App, AppVsn, EbinDir}
-                           end || {App, AppVsn} <- AppVsns];
+                  case erlup_utils:find_rel(Dirs, Vsn) of
+                      {ok, RelFile} ->
+                          case erlup_utils:vsn_libs(RelFile) of
+                              {ok, AppVsns} ->
+                                  [begin
+                                       EbinDir = filename:join([erlup_utils:base_dir(RelFile), "lib",
+                                                                atom_to_list(App) ++ "-" ++ AppVsn, "ebin"]),
+                                       {App, AppVsn, EbinDir}
+                                   end || {App, AppVsn} <- AppVsns];
+                              {error, Reason} ->
+                                  ?throw(Reason)
+                          end;
                       {error, Reason} ->
                           ?throw(Reason)
                   end
@@ -92,8 +98,8 @@ do(State) ->
                    end
            end,
     Dir         = filename:join([rebar_dir:base_dir(State), "rel", Name]),
-    CurrentVsn  = proplists:get_value(current,  Opts ++ [{current, default_current_vsn(Dir)}]),
-    PreviousVsn = proplists:get_value(previous, Opts ++ [{previous, default_previous_vsn(Dir, CurrentVsn)}]),
+    CurrentVsn  = proplists:get_value(current,  Opts ++ [{current, erlup_utils:default_current_vsn(Dir)}]),
+    PreviousVsn = proplists:get_value(previous, Opts ++ [{previous, erlup_utils:default_previous_vsn(Dir, CurrentVsn)}]),
     CurrentVsn  =:= [] andalso ?throw("Current vsn is unknown. Please run ./rebar3 release"),
     PreviousVsn =:= [] andalso ?throw("Previous vsn is unknown"),
     do([Dir], PreviousVsn, CurrentVsn, erlup_state:new(rebar_state:get(State, erlup, []))),
@@ -114,26 +120,6 @@ opts() ->
      {previous, $p, undefined, string, "Previous vsn"},
      {current,  $c, undefined, string, "Current vsn"}
     ].
-
--spec default_current_vsn(file:filename()) -> Vsn :: string().
-default_current_vsn(Dir) ->
-    case erlup_utils:get_current_vsn(Dir) of
-        {ok, CurrentVsn} ->
-            CurrentVsn;
-        {error, Reason} ->
-            ?WARN("~s", [Reason]),
-            ""
-    end.
-
--spec default_previous_vsn(file:filename(), string()) -> Vsn :: string().
-default_previous_vsn(Dir, CurrentVsn) ->
-    Vsns = lists:filtermap(fun(X) -> ?IIF(filelib:is_dir(X), {true, filename:basename(X)}, false) end,
-                           filelib:wildcard(filename:join([Dir, "releases", "*"]))),
-    ?DEBUG("vsns = ~p", [Vsns]),
-    case lists:reverse(lists:filter(fun(X) -> X < CurrentVsn end, lists:usort(Vsns))) of
-        [PreviousVsn | _] -> PreviousVsn;
-        []                -> ""
-    end.
 
 rewrite_appups([], _, _) ->
     ok;
