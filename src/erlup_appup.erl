@@ -2,18 +2,6 @@
 %%
 %% @doc Automatically generate the .appup files from the beam file.
 %%
-%% ### Overview
-%%
-%% 1. Support the multiple versions upgrade and downgrade.
-%% 2. You can define the extra and original code_change functions.
-%%
-%% ### Usage
-%%
-%% ```
-%% $ rebar3 help erlup appup  # using rebar3.
-%% $ erlup appup -h           # using escript.
-%% '''
-%%
 -module(erlup_appup).
 -behaviour(provider).
 
@@ -42,7 +30,6 @@
 %%----------------------------------------------------------------------------------------------------------------------
 
 %% @see do/4
-%% @private
 -spec do([Dir :: file:filename_all()], erlup_state:t()) -> ok.
 do([Dir|_] = Dirs, State) ->
     case erlup_utils:lookup_current_vsn(Dir) of
@@ -51,31 +38,31 @@ do([Dir|_] = Dirs, State) ->
     end.
 
 %% @see do/4
-%% @private
 -spec do([Dir :: file:filename_all()], string() | [string()], erlup_state:t()) -> ok.
 do(_, [], _) ->
     ?throw("Current Vsn is empty.");
 do([Dir|_] = Dirs, [P|_] = PreviousVsns, State) when is_list(P) ->
     case erlup_utils:lookup_current_vsn(Dir) of
-        {ok, CurrentVsn} -> do(Dirs, CurrentVsn, PreviousVsns, State);
+        {ok, CurrentVsn} -> do(Dirs, PreviousVsns, CurrentVsn, State);
         {error, Reason}  -> ?throw(Reason)
     end;
 do(Dirs, CurrentVsn, State) ->
     Rels    = erlup_utils:find_rels(Dirs),
     RelName = lookup_relname(CurrentVsn, Rels),
-    Vsns    = [Vsn || {N, Vsn, _} <- Rels, RelName =:= N, Vsn =/= CurrentVsn],
-    case Vsns of
-        []           -> ?throw("Can not find a different version than the current");
-        PreviousVsns -> do(Dirs, PreviousVsns, CurrentVsn, erlup_state:set_rels(Rels, State))
-    end.
+    Vsns    = [Vsn || {N, Vsn, _} <- Rels, RelName =:= N],
+
+    {PreviousVsns, _} = erlup_utils:split(erlup_utils:sort_vsns(Vsns), CurrentVsn),
+    ?IF(Vsns =:= [] orelse Vsns =:= [CurrentVsn], ?throw("Can not find a different version than the current")),
+    ?IF(PreviousVsns =:= [],                      ?throw("Can not find previous vsns")),
+
+    do(Dirs, PreviousVsns, CurrentVsn, erlup_state:set_rels(Rels, State)).
 
 %% @doc Automatically generate the .appup files from the beam file.
-%% @private
 -spec do([file:filename()], string() | [string()], string(), erlup_state:t()) -> ok.
 do(Dirs, [X | _] = PreviousVsns, CurrentVsn, State0) when is_list(X) ->
     lists:foreach(fun(P) -> do(Dirs, P, CurrentVsn, State0) end, PreviousVsns);
 do(Dirs, PreviousVsn, CurrentVsn, State0) ->
-    ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
+    ?INFO("previous = ~p, current = ~p", [PreviousVsn, CurrentVsn]),
     State1 = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
                          State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
     State2 = case erlup_state:get_rels(State1) of
@@ -169,17 +156,25 @@ lookup_relname(Vsn, Rels) ->
         {RelName, _, _} -> RelName
     end.
 
+%% @doc Rewrite the appup files.
+-spec rewrite_appups(To, From, erlup_state:t()) -> ok when
+      To       :: AppInfos,
+      From     :: AppInfos,
+      AppInfos :: [{App :: atom(), Vsn :: string(), EbinDir :: file:filename_all()}].
 rewrite_appups([], _, _) ->
     ok;
 rewrite_appups([{App, ToVsn, ToEbinDir} | ToRest], From, State0) ->
     case lists:keyfind(App, 1, From) of
         false ->
+            ?DEBUG("~s (~p) is added application.", [App, ToVsn]),
             rewrite_appups(ToRest, From, State0);
         {_, ToVsn, _} ->
+            ?DEBUG("~s (~p) is not changed.", [App, ToVsn]),
             rewrite_appups(ToRest, From, State0);
         {_, FromVsn, FromEbinDir} ->
-            ?DEBUG("to: ~s, from: ~s", [ToEbinDir, FromEbinDir]),
-            State = erlup_state:set_sedargs('$oldvsn', FromVsn, State0),
+            ?DEBUG("~s (~p => ~p) is changed. ebin : ~s => ~s", [App, FromVsn, ToVsn, FromEbinDir, ToEbinDir]),
+            State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
+                                State0, [{'$from_vsn', FromVsn}, {'$to_vsn', ToVsn}]),
 
             AppupPath = filename:join(ToEbinDir, atom_to_list(App) ++ ".appup"),
             {Up, Down} = case file:consult(AppupPath) of

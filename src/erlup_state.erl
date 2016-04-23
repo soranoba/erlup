@@ -1,7 +1,6 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 %%
 %% @doc erlup configure.
-%% @private
 -module(erlup_state).
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -37,7 +36,6 @@
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
-%% @doc
 -spec new([{atom(), term()}]) -> t().
 new(List) ->
     Appup   = proplists:get_value(appup, List, []),

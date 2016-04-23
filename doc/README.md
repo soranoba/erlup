@@ -1,12 +1,16 @@
+erlup
+========
 
+## Command
 
-# The erlup application #
+- <a href="appup.md">appup</a>
 
+## Log level
 
-## Modules ##
+It use `rebar_log'.
+So, even if you use the escript, it is possible to specify the log level in the same manner as when using the rebar3.
 
-
-<table width="100%" border="0" summary="list of modules">
-<tr><td><a href="erlup.md" class="module">erlup</a></td></tr>
-<tr><td><a href="erlup_appup.md" class="module">erlup_appup</a></td></tr></table>
-
+```bash
+$ QUIET=1 erlup    # only display errors
+$ DEBUG=1 erlup    # show debug output
+```

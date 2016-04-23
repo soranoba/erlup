@@ -1,7 +1,6 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 %%
 %% @doc Utility functions
-%% @private
 
 -module(erlup_utils).
 
@@ -138,6 +137,17 @@ lookup_include_libs(RelFile) ->
 %% @doc Sort the vsns to the old version order.
 %%
 %% MUST be the form of <a href="http://semver.org/">Semantic Versioning</a>
+%%
+%% ```
+%% v1.2.3-alpha.1+build.1.g12345
+%%
+%% Prefix        : v              : ignore non-numeric
+%% Majour        : 1              : only integer
+%% Minor         : 2              : only integer
+%% Patch         : 3              : only integer
+%% PreRelease    : alpha.1        : It compare for each that split by dot. PreRelease is old than Non-PreRelease.
+%% BuildMetaData : build.1.g12345 : ignore all
+%% '''
 -spec sort_vsns([Vsn :: string()]) -> [string()].
 sort_vsns(Vsns) ->
     VersionFun
