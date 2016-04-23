@@ -3,7 +3,6 @@
 %% @doc Automatically generate the .relup file.
 %%
 -module(erlup_relup).
--behaviour(provider).
 
 -include("erlup.hrl").
 

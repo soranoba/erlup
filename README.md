@@ -1,5 +1,6 @@
 erlup
 ========
+[![Build Status](https://travis-ci.org/soranoba/erlup.svg?branch=master)](https://travis-ci.org/soranoba/erlup)
 [![hex.pm version](https://img.shields.io/hexpm/v/erlup.svg)](https://hex.pm/packages/erlup)
 
 Upgrade tools for Erlang/OTP. Contains rebar3 plugin and escript.

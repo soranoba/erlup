@@ -3,7 +3,6 @@
 %% @doc Automatically generate the .appup files from the beam file.
 %%
 -module(erlup_appup).
--behaviour(provider).
 
 -include("erlup.hrl").
 
@@ -233,8 +232,6 @@ format_appup(ToVsn, Up, Down) ->
 %% @see format_appup/3
 -spec format_vsn_instructions([{FromVsn, [instruction()]}]) -> iodata() when
       FromVsn :: string().
-format_vsn_instructions([]) ->
-    [];
 format_vsn_instructions(VsnInstructions) ->
     string:join(lists:map(fun({FromVsn, Instructions}) ->
                                   io_lib:format("  {~p,~n   [~n~s   ]}",

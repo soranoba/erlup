@@ -1,4 +1,4 @@
-all: eunit escriptize
+all: eunit escriptize xref dialyzer
 
 escriptize:
 	@./rebar3 as escript escriptize
@@ -9,3 +9,9 @@ compile:
 
 eunit:
 	@./rebar3 eunit
+
+xref:
+	@./rebar3 as escript xref
+
+dialyzer:
+	@./rebar3 dialyzer
