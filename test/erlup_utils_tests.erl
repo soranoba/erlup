@@ -20,6 +20,12 @@ to_string_test_() ->
      ?_assertEqual("1", erlup_utils:to_string(<<"1">>))
     ].
 
+to_binary_test_() ->
+    [
+     ?_assertEqual(<<"1">>, erlup_utils:to_binary("1")),
+     ?_assertEqual(<<"1">>, erlup_utils:to_binary(<<"1">>))
+    ].
+
 absname_test_() ->
     [
      ?_assertEqual(filename:absname(""),

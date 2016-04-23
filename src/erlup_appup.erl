@@ -11,7 +11,7 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         do/2, do/3, do/4
+         do/4
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -28,34 +28,6 @@
 %%----------------------------------------------------------------------------------------------------------------------
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
-
-%% @see do/4
--spec do([Dir :: file:filename_all()], erlup_state:t()) -> ok.
-do([Dir|_] = Dirs, State) ->
-    case erlup_utils:lookup_current_vsn(Dir) of
-        {ok, CurrentVsn} -> do(Dirs, CurrentVsn, State);
-        {error, Reason}  -> ?throw(Reason)
-    end.
-
-%% @see do/4
--spec do([Dir :: file:filename_all()], string() | [string()], erlup_state:t()) -> ok.
-do(_, [], _) ->
-    ?throw("Current Vsn is empty.");
-do([Dir|_] = Dirs, [P|_] = PreviousVsns, State) when is_list(P) ->
-    case erlup_utils:lookup_current_vsn(Dir) of
-        {ok, CurrentVsn} -> do(Dirs, PreviousVsns, CurrentVsn, State);
-        {error, Reason}  -> ?throw(Reason)
-    end;
-do(Dirs, CurrentVsn, State) ->
-    Rels    = erlup_utils:find_rels(Dirs),
-    RelName = lookup_relname(CurrentVsn, Rels),
-    Vsns    = [Vsn || {N, Vsn, _} <- Rels, RelName =:= N],
-
-    {PreviousVsns, _} = erlup_utils:split(erlup_utils:sort_vsns(Vsns), CurrentVsn),
-    ?IF(Vsns =:= [] orelse Vsns =:= [CurrentVsn], ?throw("Can not find a different version than the current")),
-    ?IF(PreviousVsns =:= [],                      ?throw("Can not find previous vsns")),
-
-    do(Dirs, PreviousVsns, CurrentVsn, erlup_state:set_rels(Rels, State)).
 
 %% @doc Automatically generate the .appup files from the beam file.
 -spec do([file:filename()], string() | [string()], string(), erlup_state:t()) -> ok.
@@ -101,7 +73,7 @@ init(State) ->
                                  {module, ?MODULE},
                                  {bare, true},
                                  {deps, []},
-                                 {opts, opts()},
+                                 {opts, erlup_rebar3:opts("appup")},
                                  {short_desc, "Generate the .appup file"}
                                 ]),
     {ok, rebar_state:add_provider(State, Provider)}.
@@ -109,28 +81,7 @@ init(State) ->
 %% @private
 -spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
 do(State) ->
-    {Opts, _} = rebar_state:command_parsed_args(State),
-
-    Name = case rebar_state:get(State, relx, undefined) of
-               undefined -> ?throw("Relx configuration is not found.");
-               RelxConf  ->
-                   case lists:keyfind(release, 1, RelxConf) of
-                       {_, {Name0, _}, _} when is_atom(Name0) -> atom_to_list(Name0);
-                       _                                      -> ?throw("Release name is unknown.")
-                   end
-           end,
-    Dir          = filename:join([rebar_dir:base_dir(State), "rel", Name]),
-    CurrentVsn   = proplists:get_value(current,  Opts, undefined),
-    PreviousVsns = [erlup_utils:to_string(X)
-                    || X <- binary:split(proplists:get_value(previous, Opts), <<",">>, [trim, global])],
-    ErlupState   = erlup_state:new(rebar_state:get(State, erlup, [])),
-    case {CurrentVsn, PreviousVsns} of
-        {undefined, []} -> do([Dir], ErlupState);
-        {undefined, _}  -> do([Dir], PreviousVsns, ErlupState);
-        {_,         []} -> do([Dir], CurrentVsn,   ErlupState);
-        _               -> do([Dir], PreviousVsns, CurrentVsn, ErlupState)
-    end,
-    {ok, State}.
+    erlup_rebar3:do("appup", State).
 
 %% @private
 -spec format_error(iodata()) -> iolist().
@@ -140,21 +91,6 @@ format_error(Reason) ->
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
 %%----------------------------------------------------------------------------------------------------------------------
-
--spec opts() -> [getopt:option_spec()].
-opts() ->
-    [
-     {previous, $p, undefined, {binary, <<>>}, "List of previous vsn"},
-     {current,  $c, undefined,         string, "Current vsn"}
-    ].
-
-%% @doc Lookup the relname from the rel file.
--spec lookup_relname(string(), file:filename_all()) -> string().
-lookup_relname(Vsn, Rels) ->
-    case lists:keyfind(Vsn, 2, Rels) of
-        false           -> ?throw("Can not find a rel file. (" ++ Vsn ++ ")");
-        {RelName, _, _} -> RelName
-    end.
 
 %% @doc Rewrite the appup files.
 -spec rewrite_appups(To, From, erlup_state:t()) -> ok when

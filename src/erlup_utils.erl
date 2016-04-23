@@ -12,6 +12,7 @@
 -export([
          list_to_integer_if_possible/1,
          to_string/1,
+         to_binary/1,
          split/2,
          absname/1,
 
@@ -42,6 +43,13 @@ to_string(Bin) when is_binary(Bin) ->
     binary_to_list(Bin);
 to_string(Str) when is_list(Str) ->
     Str.
+
+%% @doc Convert to binary, if necessary.
+-spec to_binary(binary() | string()) -> binary().
+to_binary(Str) when is_list(Str) ->
+    list_to_binary(Str);
+to_binary(Bin) when is_binary(Bin) ->
+    Bin.
 
 %% @doc Split the list by the position of the Term.
 %%
