@@ -12,7 +12,7 @@ Automatically generate the .appup files from the beam file.
 ```
 $ rebar3 help erlup appup  # using rebar3.
 $ erlup appup -h           # using escript.
-'''
+```
 
 ## Configuration
 
@@ -37,8 +37,7 @@ When the `term()` to specify the following `atom`, it use the actual value.
 
 If changed module export the given function, the function is executed at the time of the upgrade / downgrade.
 
-In the case of upgrade, it will be executed **after** the module has been loaded.
-
+In the case of upgrade, it will be executed **after** the module has been loaded.  
 In the case of downgrade, it will be executed **before** the module has been loaded.
 
 So, it runs on the always new module.
@@ -51,7 +50,8 @@ So, it runs on the always new module.
         ]}.
 ```
 
-Length of `UpArgs` and `DownArgs` must be the same.
+Length of `UpArgs` and `DownArgs` **MUST** be the same.  
+`Function` **MUST NOT** use `code_change` and `system_code_change`.
 
 ### Deps
 
