@@ -10,7 +10,7 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         main/1, init/1,
+         main/1, init/1, format_error/1,
          escript_opt_specs/1,
          do_task/3
         ]).
@@ -55,8 +55,8 @@ main(Args) ->
                     try
                         do_task(Task, Options)
                     catch
-                        throw:{error, {Module, Str}} when is_atom(Module) ->
-                            ?ERROR("~s", [Str]),
+                        throw:{error, {Module, Err}} when is_atom(Module) ->
+                            ?ERROR("~s", [Module:format_error(Err)]),
                             halt(1)
                     end
             end;
@@ -65,6 +65,11 @@ main(Args) ->
             halt(1)
     end,
     halt(0).
+
+%% @private
+-spec format_error(iodata()) -> iolist().
+format_error(Reason) ->
+    io_lib:format("~s", [Reason]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions

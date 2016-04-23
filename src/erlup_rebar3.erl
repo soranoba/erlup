@@ -20,7 +20,7 @@
 %% @doc Return the option of command
 -spec opts(Task :: string()) -> [getopt:option_spec()].
 opts(Task) ->
-    lists:filter(fun(X) -> lists:member(element(1, X), [conf, dir, help]) end,
+    lists:filter(fun(X) -> not lists:member(element(1, X), [conf, dir, help]) end,
                  erlup:escript_opt_specs(Task)).
 
 %% @doc Execute the task.
@@ -40,7 +40,7 @@ do(Task, State) ->
                     Dir        = filename:join([rebar_dir:base_dir(State), "rel", Name]),
                     ErlupState = erlup_state:new(rebar_state:get(State, erlup, [])),
 
-                    ok = erlup:do_task(Task, [{dir, erlup_utils:to_binary(Dir)} | Opts], ErlupState),
+                    ok = erlup:do_task(Task, [{dir, erlup_utils:to_string(Dir)} | Opts], ErlupState),
                     {ok, State};
                 _ ->
                     {error, "Relx configuration is invalid format."}
