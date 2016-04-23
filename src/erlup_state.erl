@@ -31,7 +31,7 @@
           deps              :: [{module(), ModDeps :: [module()]}],
           extra             :: {UpExtra :: term(), DownExtra :: term()},
           sed_args = []     :: [{Before :: term(), After :: term()}],
-          dict = dict:new() :: dict:dict()
+          dict = dict:new() :: term() % dict
         }).
 -opaque t() :: #?MODULE{}.
 
