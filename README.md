@@ -8,7 +8,12 @@ Upgrade tools for Erlang/OTP. Contains rebar3 plugin and escript.
 ## Overview
 It is a tool to support the upgrade and downgrade of OTP application.
 
-1. Automatic generation of the appup file. [See also](doc/erlup_appup.md).
+1. Automatic generation of the appup files. [See also](doc/appup.md).
+2. Automatic generation of the relup file. [See also](doc/relup.md).
+
+Some of the library already exists, but they has many defects.  
+For example, supporting downgrade and create the more safety appup.  
+If you want to know in detail, please refer to the [documentation](doc) of each command.
 
 ## Usage
 
@@ -44,16 +49,13 @@ $ ls /usr/local/myapp/releases         # previous versions
 $ ls /tmp/myapp/releases               # a new version
 0.0.3 RELEASES start_erl.data
 
-$ erlup appup --dir /tmp/myapp,/usr/local/myapp -p 0.0.1 -c 0.0.2
-$ erlup relup --dir /tmp/myapp
+$ erlup appup -p 0.0.1 -c 0.0.2 -d /tmp/myapp -d /usr/local/myapp
+$ erlup relup -c 0.0.2 -d /tmp/myapp -d /usr/local/myapp
 ```
 
 ### More information
 
-```
-$ rebar3 help erlup
-$ erlup -h
-```
+[Documents](doc)
 
 ## Configure file
 
@@ -74,3 +76,11 @@ If you use the escript.
 {relup, []}.
 ```
 The escript can read in the form of a rebar3.config.
+
+## Contribute
+
+Pull request is welcome =D
+
+## License
+
+[MIT License](LICENSE)

@@ -4,6 +4,7 @@ erlup
 ## Command
 
 - <a href="appup.md">appup</a>
+- <a href="relup.md">relup</a>
 
 ## Log level
 

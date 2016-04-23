@@ -102,10 +102,9 @@ do_task(Task, Options) ->
 -spec do_task(string(), [{atom(), term()}], erlup_state:t()) -> ok.
 do_task(Task, Options, State) when Task =:= "appup"; Task =:= "relup" ->
     CurrentVsn0   = proplists:get_value(current, Options),
-    PreviousVsns0 = [erlup_utils:to_string(X)
-                     || X <- binary:split(proplists:get_value(previous, Options), <<",">>, [trim, global])],
-    Dirs          = [erlup_utils:to_string(X)
-                    || X <- binary:split(proplists:get_value(dir, Options), <<",">>, [trim, global])],
+    PreviousVsns0 = proplists:get_all_values(previous, Options),
+    Dirs0         = proplists:get_all_values(dir, Options),
+    Dirs          = ?IIF(Dirs0 =:= [], ["."], Dirs0),
 
     CurrentVsn = ?IIF(CurrentVsn0 =:= undefined, default_current_vsn(hd(Dirs)), CurrentVsn0),
     ?IF(PreviousVsns0 =:= [CurrentVsn], ?throw("Current and previous are the same")),
@@ -119,8 +118,11 @@ do_task(Task, Options, State) when Task =:= "appup"; Task =:= "relup" ->
 -spec default_current_vsn(file:filename()) -> string().
 default_current_vsn(Dir) ->
     case erlup_utils:lookup_current_vsn(Dir) of
-        {ok, CurrentVsn} -> CurrentVsn;
-        {error, Reason}  -> ?throw(Reason)
+        {ok, CurrentVsn} ->
+            ?INFO("Current vsn = ~p", [CurrentVsn]),
+            CurrentVsn;
+        {error, Reason}  ->
+            ?throw(Reason)
     end.
 
 -spec default_previous_vsns([file:filename()], string()) -> [string()].
@@ -142,10 +144,10 @@ escript_opt_specs() ->
     [
      {    task, undefined,  undefined,                 string, "Task to run"},
      {    help,        $h,  undefined,              undefined, "Display this help"},
-     {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file [default: erlup.conf]"},
+     {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file"},
      { current,        $c,  undefined,                 string, "Vsn of current release"},
-     {previous,        $p,  undefined,         {binary, <<>>}, "List of previous vsn"},
-     {    dir,  undefined,      "dir",      {binary, <<".">>}, "List of release directory (e.g. rel/${APP})"}
+     {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
+     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].
