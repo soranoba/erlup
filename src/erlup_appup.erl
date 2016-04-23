@@ -36,8 +36,8 @@ do(Dirs, PreviousVsn, CurrentVsn, State0) ->
     ?INFO("previous = ~p, current = ~p", [PreviousVsn, CurrentVsn]),
     State1 = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
                          State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
-    State2 = case erlup_state:get_rels(State1) of
-                 undefined -> erlup_state:set_rels(Rels = erlup_utils:find_rels(Dirs), State1);
+    State2 = case erlup_state:get(rels, State1, undefined) of
+                 undefined -> erlup_state:put(rels, Rels = erlup_utils:find_rels(Dirs), State1);
                  Rels      -> State1
              end,
 

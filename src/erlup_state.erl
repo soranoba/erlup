@@ -12,11 +12,14 @@
          mod_deps/1,
          extra/2,
          set_sedargs/3,
-         get_rels/1,
-         set_rels/2
+         get/2,
+         get/3,
+         put/3
         ]).
 
--export_type([t/0]).
+-export_type([
+              t/0
+             ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Macros and Types
@@ -24,11 +27,11 @@
 
 -record(?MODULE,
         {
-          applys        :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
-          deps          :: [{module(), ModDeps :: [module()]}],
-          extra         :: {UpExtra :: term(), DownExtra :: term()},
-          sed_args = [] :: [{Before :: term(), After :: term()}],
-          rels          :: [{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}] | undefined
+          applys            :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
+          deps              :: [{module(), ModDeps :: [module()]}],
+          extra             :: {UpExtra :: term(), DownExtra :: term()},
+          sed_args = []     :: [{Before :: term(), After :: term()}],
+          dict = dict:new() :: dict:dict()
         }).
 -opaque t() :: #?MODULE{}.
 
@@ -64,13 +67,20 @@ extra(down, #?MODULE{extra = {_, Extra}, sed_args = SedArgs}) ->
 set_sedargs(Before, After, #?MODULE{sed_args = SedArgs} = State) ->
     State#?MODULE{sed_args = [{Before, After} | proplists:delete(Before, SedArgs)]}.
 
--spec get_rels(t()) -> [{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}] | undefined.
-get_rels(#?MODULE{rels = Rels}) ->
-    Rels.
+-spec get(Key :: term(), t()) -> term().
+get(Key, #?MODULE{dict = Dict}) ->
+    dict:fetch(Key, Dict).
 
--spec set_rels([{RelName :: string(), Vsn :: string(), RelFile :: file:filename_all()}], t()) -> t().
-set_rels(Rels, State) ->
-    State#?MODULE{rels = Rels}.
+-spec get(Key :: term(), t(), Default :: term()) -> term().
+get(Key, #?MODULE{dict = Dict}, Default) ->
+    case dict:find(Key, Dict) of
+        {ok, V} -> V;
+        error   -> Default
+    end.
+
+-spec put(Key :: term(), Value :: term(), t()) -> t().
+put(Key, Value, #?MODULE{dict = Dict} = State) ->
+    State#?MODULE{dict = dict:store(Key, Value, Dict)}.
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
