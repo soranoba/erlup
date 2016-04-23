@@ -1,6 +1,4 @@
-all: compile eunit escriptize doc
-
-.PHONY: doc
+all: eunit escriptize xref dialyzer
 
 escriptize:
 	@./rebar3 as escript escriptize
@@ -12,5 +10,8 @@ compile:
 eunit:
 	@./rebar3 eunit
 
-doc:
-	@./rebar3 as dev edoc
+xref:
+	@./rebar3 as escript xref
+
+dialyzer:
+	@./rebar3 dialyzer

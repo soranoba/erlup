@@ -2,20 +2,7 @@
 %%
 %% @doc Automatically generate the .appup files from the beam file.
 %%
-%% ### Overview
-%%
-%% 1. Support the multiple versions upgrade and downgrade.
-%% 2. You can define the extra and original code_change functions.
-%%
-%% ### Usage
-%%
-%% ```
-%% $ rebar3 help erlup appup  # using rebar3.
-%% $ erlup appup -h           # using escript.
-%% '''
-%%
 -module(erlup_appup).
--behaviour(provider).
 
 -include("erlup.hrl").
 
@@ -42,16 +29,23 @@
 %%----------------------------------------------------------------------------------------------------------------------
 
 %% @doc Automatically generate the .appup files from the beam file.
-%% @private
--spec do([file:filename()], string(), string(), erlup_state:t()) -> ok.
+-spec do([file:filename()], string() | [string()], string(), erlup_state:t()) -> ok.
+do(Dirs, [X | _] = PreviousVsns, CurrentVsn, State0) when is_list(X) ->
+    lists:foreach(fun(P) -> do(Dirs, P, CurrentVsn, State0) end, PreviousVsns);
 do(Dirs, PreviousVsn, CurrentVsn, State0) ->
-    ?INFO("previous = ~s, current = ~s", [PreviousVsn, CurrentVsn]),
-    State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
-                        State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
+    ?INFO("previous = ~p, current = ~p", [PreviousVsn, CurrentVsn]),
+    State1 = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
+                         State0, [{'$from', PreviousVsn}, {'$to', CurrentVsn}]),
+    State2 = case erlup_state:get(rels, State1, undefined) of
+                 undefined -> erlup_state:put(rels, Rels = erlup_utils:find_rels(Dirs), State1);
+                 Rels      -> State1
+             end,
+
     Fun = fun(Vsn) ->
-                  case erlup_utils:find_rel(Dirs, Vsn) of
-                      {ok, RelFile} ->
-                          case erlup_utils:vsn_libs(RelFile) of
+                  case lists:keyfind(Vsn, 2, Rels) of
+                      false           -> ?throw("Can not find a rel file. (" ++ Vsn ++ ")");
+                      {_, _, RelFile} ->
+                          case erlup_utils:lookup_include_libs(RelFile) of
                               {ok, AppVsns} ->
                                   [begin
                                        EbinDir = filename:join([erlup_utils:base_dir(RelFile), "lib",
@@ -60,12 +54,10 @@ do(Dirs, PreviousVsn, CurrentVsn, State0) ->
                                    end || {App, AppVsn} <- AppVsns];
                               {error, Reason} ->
                                   ?throw(Reason)
-                          end;
-                      {error, Reason} ->
-                          ?throw(Reason)
+                          end
                   end
           end,
-    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State).
+    rewrite_appups(Fun(CurrentVsn), Fun(PreviousVsn), State2).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'provider' Callback Functions
@@ -80,7 +72,7 @@ init(State) ->
                                  {module, ?MODULE},
                                  {bare, true},
                                  {deps, []},
-                                 {opts, opts()},
+                                 {opts, erlup_rebar3:opts("appup")},
                                  {short_desc, "Generate the .appup file"}
                                 ]),
     {ok, rebar_state:add_provider(State, Provider)}.
@@ -88,23 +80,7 @@ init(State) ->
 %% @private
 -spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
 do(State) ->
-    {Opts, _} = rebar_state:command_parsed_args(State),
-
-    Name = case rebar_state:get(State, relx, undefined) of
-               undefined -> ?throw("Relx configuration is not found.");
-               RelxConf  ->
-                   case lists:keyfind(release, 1, RelxConf) of
-                       {_, {Name0, _}, _} when is_atom(Name0) -> atom_to_list(Name0);
-                       _                                      -> ?throw("Release name is unknown.")
-                   end
-           end,
-    Dir         = filename:join([rebar_dir:base_dir(State), "rel", Name]),
-    CurrentVsn  = proplists:get_value(current,  Opts ++ [{current, erlup_utils:default_current_vsn(Dir)}]),
-    PreviousVsn = proplists:get_value(previous, Opts ++ [{previous, erlup_utils:default_previous_vsn(Dir, CurrentVsn)}]),
-    CurrentVsn  =:= [] andalso ?throw("Current vsn is unknown. Please run ./rebar3 release"),
-    PreviousVsn =:= [] andalso ?throw("Previous vsn is unknown"),
-    do([Dir], PreviousVsn, CurrentVsn, erlup_state:new(rebar_state:get(State, erlup, []))),
-    {ok, State}.
+    erlup_rebar3:do("appup", State).
 
 %% @private
 -spec format_error(iodata()) -> iolist().
@@ -115,24 +91,25 @@ format_error(Reason) ->
 %% Internal Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
--spec opts() -> [getopt:option_spec()].
-opts() ->
-    [
-     {previous, $p, undefined, string, "Previous vsn"},
-     {current,  $c, undefined, string, "Current vsn"}
-    ].
-
+%% @doc Rewrite the appup files.
+-spec rewrite_appups(To, From, erlup_state:t()) -> ok when
+      To       :: AppInfos,
+      From     :: AppInfos,
+      AppInfos :: [{App :: atom(), Vsn :: string(), EbinDir :: file:filename_all()}].
 rewrite_appups([], _, _) ->
     ok;
 rewrite_appups([{App, ToVsn, ToEbinDir} | ToRest], From, State0) ->
     case lists:keyfind(App, 1, From) of
         false ->
+            ?DEBUG("~s (~p) is added application.", [App, ToVsn]),
             rewrite_appups(ToRest, From, State0);
         {_, ToVsn, _} ->
+            ?DEBUG("~s (~p) is not changed.", [App, ToVsn]),
             rewrite_appups(ToRest, From, State0);
         {_, FromVsn, FromEbinDir} ->
-            ?DEBUG("to: ~s, from: ~s", [ToEbinDir, FromEbinDir]),
-            State = erlup_state:set_sedargs('$oldvsn', FromVsn, State0),
+            ?DEBUG("~s (~p => ~p) is changed. ebin : ~s => ~s", [App, FromVsn, ToVsn, FromEbinDir, ToEbinDir]),
+            State = lists:foldl(fun({Before, After}, Acc) -> erlup_state:set_sedargs(Before, After, Acc) end,
+                                State0, [{'$from_vsn', FromVsn}, {'$to_vsn', ToVsn}]),
 
             AppupPath = filename:join(ToEbinDir, atom_to_list(App) ++ ".appup"),
             {Up, Down} = case file:consult(AppupPath) of
@@ -255,8 +232,6 @@ format_appup(ToVsn, Up, Down) ->
 %% @see format_appup/3
 -spec format_vsn_instructions([{FromVsn, [instruction()]}]) -> iodata() when
       FromVsn :: string().
-format_vsn_instructions([]) ->
-    [];
 format_vsn_instructions(VsnInstructions) ->
     string:join(lists:map(fun({FromVsn, Instructions}) ->
                                   io_lib:format("  {~p,~n   [~n~s   ]}",

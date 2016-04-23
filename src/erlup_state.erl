@@ -1,7 +1,6 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 %%
 %% @doc erlup configure.
-%% @private
 -module(erlup_state).
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -12,10 +11,15 @@
          applys/2,
          mod_deps/1,
          extra/2,
-         set_sedargs/3
+         set_sedargs/3,
+         get/2,
+         get/3,
+         put/3
         ]).
 
--export_type([t/0]).
+-export_type([
+              t/0
+             ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Macros and Types
@@ -23,10 +27,11 @@
 
 -record(?MODULE,
         {
-          applys        :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
-          deps          :: [{module(), ModDeps :: [module()]}],
-          extra         :: {UpExtra :: term(), DownExtra :: term()},
-          sed_args = [] :: [{Before :: term(), After :: term()}]
+          applys            :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
+          deps              :: [{module(), ModDeps :: [module()]}],
+          extra             :: {UpExtra :: term(), DownExtra :: term()},
+          sed_args = []     :: [{Before :: term(), After :: term()}],
+          dict = dict:new() :: dict:dict()
         }).
 -opaque t() :: #?MODULE{}.
 
@@ -34,7 +39,6 @@
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
-%% @doc
 -spec new([{atom(), term()}]) -> t().
 new(List) ->
     Appup   = proplists:get_value(appup, List, []),
@@ -62,6 +66,21 @@ extra(down, #?MODULE{extra = {_, Extra}, sed_args = SedArgs}) ->
 -spec set_sedargs(term(), term(), t()) -> t().
 set_sedargs(Before, After, #?MODULE{sed_args = SedArgs} = State) ->
     State#?MODULE{sed_args = [{Before, After} | proplists:delete(Before, SedArgs)]}.
+
+-spec get(Key :: term(), t()) -> term().
+get(Key, #?MODULE{dict = Dict}) ->
+    dict:fetch(Key, Dict).
+
+-spec get(Key :: term(), t(), Default :: term()) -> term().
+get(Key, #?MODULE{dict = Dict}, Default) ->
+    case dict:find(Key, Dict) of
+        {ok, V} -> V;
+        error   -> Default
+    end.
+
+-spec put(Key :: term(), Value :: term(), t()) -> t().
+put(Key, Value, #?MODULE{dict = Dict} = State) ->
+    State#?MODULE{dict = dict:store(Key, Value, Dict)}.
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions

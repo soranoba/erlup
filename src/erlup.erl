@@ -2,15 +2,6 @@
 %%
 %% @doc A escript to support the upgrade and downgrade of OTP application.
 %%
-%% ### Log level
-%% It use `rebar_log'.
-%% So, you can be set in the same manner as in the rebar3.
-%%
-%% ```
-%% $ QUIET=1 erlup    # silent mode
-%% $ DEBUG=1 erlup    # debug mode
-%% '''
-%%
 -module(erlup).
 
 -include("erlup.hrl").
@@ -19,7 +10,9 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         main/1, init/1
+         main/1, init/1, format_error/1,
+         escript_opt_specs/1,
+         do_task/3
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -32,7 +25,8 @@
 -spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
 init(State0) ->
     Mods = [
-            erlup_appup
+            erlup_appup,
+            erlup_relup
            ],
     lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end, {ok, State0}, Mods).
 
@@ -61,8 +55,8 @@ main(Args) ->
                     try
                         do_task(Task, Options)
                     catch
-                        throw:{error, {Module, Str}} when is_atom(Module) ->
-                            ?ERROR("~s", [Module:format_error(Str)]),
+                        throw:{error, {Module, Err}} when is_atom(Module) ->
+                            ?ERROR("~s", [Module:format_error(Err)]),
                             halt(1)
                     end
             end;
@@ -71,6 +65,11 @@ main(Args) ->
             halt(1)
     end,
     halt(0).
+
+%% @private
+-spec format_error(iodata()) -> iolist().
+format_error(Reason) ->
+    io_lib:format("~s", [Reason]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
@@ -106,22 +105,54 @@ do_task(Task, Options) ->
     do_task(Task, Options, erlup_state:new(ErlupConf)).
 
 -spec do_task(string(), [{atom(), term()}], erlup_state:t()) -> ok.
-do_task("appup", Options, State) ->
-    Previous = proplists:get_value(previous, Options),
-    Current  = proplists:get_value(current,  Options),
-    Dirs     = [binary_to_list(X) || X <- binary:split(proplists:get_value(dirs, Options), <<",">>, [trim, global])],
-    erlup_appup:do(Dirs, Previous, Current, State),
-    ok.
+do_task(Task, Options, State) when Task =:= "appup"; Task =:= "relup" ->
+    CurrentVsn0   = proplists:get_value(current, Options),
+    PreviousVsns0 = proplists:get_all_values(previous, Options),
+    Dirs0         = proplists:get_all_values(dir, Options),
+    Dirs          = ?IIF(Dirs0 =:= [], ["."], Dirs0),
+
+    CurrentVsn = ?IIF(CurrentVsn0 =:= undefined, default_current_vsn(hd(Dirs)), CurrentVsn0),
+    ?IF(PreviousVsns0 =:= [CurrentVsn], ?throw("Current and previous are the same")),
+
+    PreviousVsns = ?IIF(PreviousVsns0 =:= [], default_previous_vsns(Dirs, CurrentVsn), PreviousVsns0),
+    case Task of
+        "appup" -> erlup_appup:do(Dirs, PreviousVsns, CurrentVsn, State);
+        "relup" -> erlup_relup:do(Dirs, PreviousVsns, CurrentVsn, State)
+    end.
+
+-spec default_current_vsn(file:filename()) -> string().
+default_current_vsn(Dir) ->
+    case erlup_utils:lookup_current_vsn(Dir) of
+        {ok, CurrentVsn} ->
+            ?INFO("Current vsn = ~p", [CurrentVsn]),
+            CurrentVsn;
+        {error, Reason}  ->
+            ?throw(Reason)
+    end.
+
+-spec default_previous_vsns([file:filename()], string()) -> [string()].
+default_previous_vsns(Dirs, CurrentVsn) ->
+    Rels    = erlup_utils:find_rels(Dirs),
+    RelName = case lists:keyfind(CurrentVsn, 2, Rels) of
+                  false           -> ?throw("Can not find a rel file. (" ++ CurrentVsn ++ ")");
+                  {RelName0, _, _} -> RelName0
+              end,
+
+    Vsns = [Vsn || {N, Vsn, _} <- Rels, RelName =:= N],
+    case erlup_utils:split(erlup_utils:sort_vsns(Vsns), CurrentVsn) of
+        {[], _}           -> ?throw("Can not find previous vsns");
+        {PreviousVsns, _} -> PreviousVsns
+    end.
 
 -spec escript_opt_specs() -> [getopt:option_spec()].
 escript_opt_specs() ->
     [
      {    task, undefined,  undefined,                 string, "Task to run"},
      {    help,        $h,  undefined,              undefined, "Display this help"},
-     {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file [default: erlup.conf]"},
-     { current,        $c,  undefined,                 string, "Vsn of the current release"},
-     {previous,        $p,  undefined,                 string, "Vsn of the previous release"},
-     {    dirs, undefined,      "dir",      {binary, <<".">>}, "List of release directory (e.g. rel/${APP})"}
+     {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file"},
+     { current,        $c,  undefined,                 string, "Vsn of current release"},
+     {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
+     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].
@@ -130,6 +161,7 @@ escript_opt_specs(Task) ->
                  escript_opt_specs()).
 
 -spec task_opts(Task :: string()) -> [OptKey :: atom()].
-task_opts("appup") -> [current, previous, conf, dirs, help];
+task_opts("appup") -> [current, previous, conf, dir, help];
+task_opts("relup") -> [current, previous, conf, dir, help];
 task_opts("")      -> [help, task, conf];
 task_opts(_)       -> []. % not supported

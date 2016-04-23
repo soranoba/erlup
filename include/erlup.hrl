@@ -1,6 +1,7 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 
 -define(IIF(Cond, TValue, FValue), case Cond of true -> TValue; false -> FValue end).
+-define(IF(Cond, TValue),          ((Cond) andalso TValue)).
 
 -define(INFO(Format, Args),  rebar_api:info("[erlup_appup] " ++ Format, Args)).
 -define(DEBUG(Format, Args), rebar_api:debug("[erlup_appup] " ++ Format, Args)).
