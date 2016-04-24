@@ -93,9 +93,10 @@ base_dir(Path) ->
                {"ebin",     "myapp/lib/mymod-vsn/ebin",             "myapp"},
                {"bin",      "myapp/bin",                            "myapp"}
               ],
-    case ?IIF(Ext =:= "", lists:keyfind(Base, 1, Mapping), lists:keyfind(Ext, 1, Mapping)) of
-        false when Ext =/= "" -> error({not_support_extension, Ext}, [Path]);
-        false                 -> Path;
+    IsDir = ?IIF(filelib:is_file(Path), filelib:is_dir(Path), Ext =:= ""),
+    case ?IIF(IsDir, lists:keyfind(Base, 1, Mapping), lists:keyfind(Ext, 1, Mapping)) of
+        false when IsDir -> Path;
+        false            -> error({not_support_extension, Ext}, [Path]);
         {_, F, B} ->
             lists:foldl(fun(_, Acc) -> filename:dirname(Acc) end,
                         AbsPath, lists:seq(1, length(filename:split(F)) - length(filename:split(B))))

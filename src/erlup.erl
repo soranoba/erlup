@@ -26,7 +26,8 @@
 init(State0) ->
     Mods = [
             erlup_appup,
-            erlup_relup
+            erlup_relup,
+            erlup_tarup
            ],
     lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end, {ok, State0}, Mods).
 
@@ -118,7 +119,19 @@ do_task(Task, Options, State) when Task =:= "appup"; Task =:= "relup" ->
     case Task of
         "appup" -> erlup_appup:do(Dirs, PreviousVsns, CurrentVsn, State);
         "relup" -> erlup_relup:do(Dirs, PreviousVsns, CurrentVsn, State)
-    end.
+    end;
+do_task("tarup", Options, State) ->
+    Dirs0         = proplists:get_all_values(dir, Options),
+    Dirs          = ?IIF(Dirs0 =:= [], ["."], Dirs0),
+    PreviousVsns0 = proplists:get_all_values(previous, Options),
+    PreviousVsns  = case PreviousVsns0 of
+                        [] ->
+                            Rels = erlup_utils:find_rels(Dirs),
+                            [Vsn || {_, Vsn, _} <- Rels];
+                        _  ->
+                            PreviousVsns0
+                    end,
+    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State).
 
 -spec default_current_vsn(file:filename()) -> string().
 default_current_vsn(Dir) ->
@@ -152,7 +165,8 @@ escript_opt_specs() ->
      {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file"},
      { current,        $c,  undefined,                 string, "Vsn of current release"},
      {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
-     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"}
+     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"},
+     {     tar, undefined,  undefined,                 string, "Tar file (required)"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].
@@ -163,5 +177,6 @@ escript_opt_specs(Task) ->
 -spec task_opts(Task :: string()) -> [OptKey :: atom()].
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
+task_opts("tarup") -> [tar, previous, conf, dir, help];
 task_opts("")      -> [help, task, conf];
 task_opts(_)       -> []. % not supported
