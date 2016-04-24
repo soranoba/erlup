@@ -26,6 +26,7 @@
 %% Exported Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
+%% @doc Add a relup to tar for the upgrade / downgrade.
 -spec do([file:filename()], [string()], file:filename(), erlup_state:t()) -> ok.
 do(Dirs, PreviousVsns, Tar, State) ->
     TempDir = ec_file:insecure_mkdtemp(),
@@ -36,30 +37,6 @@ do(Dirs, PreviousVsns, Tar, State) ->
         ec_file:remove(TempDir, [recursive]),
         ?DEBUG("clean tempdir : ~s", [TempDir])
     end.
-
--spec update_tar([file:filename()], file:filename(), [string()], file:filename(), erlup_state:t()) -> ok.
-update_tar(Dirs, TempDir, PreviousVsns0, Tar, State) ->
-    case erl_tar:extract(Tar, [{cwd, TempDir}, compressed]) of
-        ok                    -> ok;
-        {error, {_, Reason0}} -> ?throw(erl_tar:format_error(Reason0))
-    end,
-    CurrentVsn = case erlup_utils:lookup_current_vsn(TempDir) of
-                     {ok, CurrentVsn0} -> CurrentVsn0;
-                     {error, Reason1}  -> ?throw(Reason1)
-                 end,
-    PreviousVsns = lists:delete(CurrentVsn, PreviousVsns0),
-    ok = erlup_appup:do([TempDir | Dirs], PreviousVsns, CurrentVsn, State),
-    ok = erlup_relup:do([TempDir | Dirs], PreviousVsns, CurrentVsn, State),
-    ok = clean_appup(TempDir),
-    case erl_tar:create(Tar, [{X, filename:join(TempDir, X)} || X <- filelib:wildcard("*", TempDir)]) of
-        ok                    -> ok;
-        {error, {_, Reason2}} -> ?throw(erl_tar:format_error(Reason2))
-    end,
-    ?INFO("update ~s", [Tar]).
-
--spec clean_appup(file:filename_all()) -> ok.
-clean_appup(Dir) ->
-    lists:foreach(fun(X) -> file:delete(X) end, filelib:wildcard(filename:join([Dir, "**", "*.appup"]))).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'provider' Callback Functions
@@ -92,3 +69,27 @@ format_error(Reason) ->
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
 %%----------------------------------------------------------------------------------------------------------------------
+
+-spec update_tar([file:filename()], file:filename(), [string()], file:filename(), erlup_state:t()) -> ok.
+update_tar(Dirs, TempDir, PreviousVsns0, Tar, State) ->
+    case erl_tar:extract(Tar, [{cwd, TempDir}, compressed]) of
+        ok                    -> ok;
+        {error, {_, Reason0}} -> ?throw(erl_tar:format_error(Reason0))
+    end,
+    CurrentVsn = case erlup_utils:lookup_current_vsn(TempDir) of
+                     {ok, CurrentVsn0} -> CurrentVsn0;
+                     {error, Reason1}  -> ?throw(Reason1)
+                 end,
+    PreviousVsns = lists:delete(CurrentVsn, PreviousVsns0),
+    ok = erlup_appup:do([TempDir | Dirs], PreviousVsns, CurrentVsn, State),
+    ok = erlup_relup:do([TempDir | Dirs], PreviousVsns, CurrentVsn, State),
+    ok = clean_appup(TempDir),
+    case erl_tar:create(Tar, [{X, filename:join(TempDir, X)} || X <- filelib:wildcard("*", TempDir)]) of
+        ok                    -> ok;
+        {error, {_, Reason2}} -> ?throw(erl_tar:format_error(Reason2))
+    end,
+    ?INFO("update ~s", [Tar]).
+
+-spec clean_appup(file:filename_all()) -> ok.
+clean_appup(Dir) ->
+    lists:foreach(fun(X) -> file:delete(X) end, filelib:wildcard(filename:join([Dir, "**", "*.appup"]))).
