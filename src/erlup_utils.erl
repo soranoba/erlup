@@ -105,7 +105,7 @@ base_dir(Path) ->
 %% @doc Find .rel files in the directories.
 -spec find_rels([Dir :: file:filename_all()]) -> [{RelName :: string(), Vsn :: string(), file:filename_all()}].
 find_rels(Dirs) ->
-    Ret = lists:foldl(fun(Dir, Acc) ->
+    Ret = lists:foldr(fun(Dir, Acc) ->
                               Wildcard = filename:join([base_dir(Dir), "releases", "*", "*.rel"]),
                               lists:filtermap(fun(Path) ->
                                                       case file:consult(Path) of
@@ -116,7 +116,7 @@ find_rels(Dirs) ->
                                                       end
                                               end, filelib:wildcard(Wildcard)) ++ Acc
                       end, [], Dirs),
-    lists:ukeysort(3, Ret).
+    lists:ukeysort(2, Ret).
 
 %% @doc Lookup the current version of a release that given directory is belongs.
 -spec lookup_current_vsn(file:filename_all()) -> {ok, Vsn :: string()} | {error, string()}.
