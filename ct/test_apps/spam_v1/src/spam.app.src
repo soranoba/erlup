@@ -1,0 +1,12 @@
+%% vim: set filetype=erlang : -*- erlang -*-
+{application,spam,
+ [{vsn,"0.0.1"},
+  {description,"spam"},
+  {registered,[]},
+  {mod,{spam_app,[]}},
+  {applications,[kernel,stdlib,spam_2]},
+  {env,[]},
+  {modules,[]},
+  {contributors,[]},
+  {licenses,[]},
+  {links,[]}]}.
