@@ -1,6 +1,8 @@
 %% @copyright 2016 Hinagiku Soranoba All Rights Reserved.
 
 -module(erlup_utils_tests).
+
+-include("erlup.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
 %%----------------------------------------------------------------------------------------------------------------------
@@ -35,22 +37,41 @@ absname_test_() ->
     ].
 
 base_dir_test_() ->
-    [
-     ?_assertEqual(filename:join(filename:absname(""), "myapp"),
-                   erlup_utils:base_dir(filename:join("myapp", X)))
-     || X <- [
-              "releases/0.0.1/myapp.rel",
-              "releases/0.0.1/relup",
-              "releases/start_erl.data",
-              "lib/mylib/ebin/mylib.appup",
-              "lib/mylib/ebin/mymod.beam",
-              "lib/mylib/ebin/mylib.app",
-              "releases",
-              "lib",
-              "lib/mylib/ebin",
-              "bin"
+    TestData = [
+                "releases/0.0.1/myapp.rel",
+                "releases/0.0.1/relup",
+                "releases/start_erl.data",
+                "lib/mylib/ebin/mylib.appup",
+                "lib/mylib/ebin/mymod.beam",
+                "lib/mylib/ebin/mylib.app",
+                "releases",
+                "lib",
+                "lib/mylib/ebin",
+                "bin"
+               ],
+    {setup,
+     fun() ->
+             ec_file:insecure_mkdtemp()
+     end,
+     fun(TempDir) ->
+             ec_file:remove(TempDir, [recursive])
+     end,
+     fun(TempDir) ->
+             [
+              fun() ->
+                      [?assertEqual(filename:join(filename:absname(""), "myapp"),
+                                    erlup_utils:base_dir(filename:join("myapp", X)))
+                       || X <- TestData]
+              end,
+              fun() ->
+                      [begin
+                           X = filename:join(TempDir, X0),
+                           ok = filelib:ensure_dir(?IIF(filename:extension(X) =:= "", filename:join(X, "dummy"), X)),
+                           ?assertEqual(TempDir, erlup_utils:base_dir(filename:join(TempDir, X)))
+                       end || X0 <- ["" | TestData] ]
+              end
              ]
-    ].
+     end}.
 
 sort_vsns_test_() ->
     [
