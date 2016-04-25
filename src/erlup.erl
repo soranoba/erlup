@@ -124,12 +124,14 @@ do_task("tarup", Options, State) ->
     Dirs0         = proplists:get_all_values(dir, Options),
     Dirs          = ?IIF(Dirs0 =:= [], ["."], Dirs0),
     PreviousVsns0 = proplists:get_all_values(previous, Options),
-    PreviousVsns  = case PreviousVsns0 of
-                        [] ->
+    PreviousVsns  = case {PreviousVsns0 =:= [], proplists:get_value(single, Options, false)} of
+                        {true, true}   -> [default_current_vsn(hd(Dirs))];
+                        {false, false} -> PreviousVsns0;
+                        {true, false}  ->
                             Rels = erlup_utils:find_rels(Dirs),
                             [Vsn || {_, Vsn, _} <- Rels];
-                        _  ->
-                            PreviousVsns0
+                        {false, true}  ->
+                            ?throw("Can not be used -p and --single options at the same time")
                     end,
     erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State).
 
@@ -166,6 +168,7 @@ escript_opt_specs() ->
      { current,        $c,  undefined,                 string, "Vsn of current release"},
      {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
      {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"},
+     {  single, undefined,   "single",              undefined, "Generates only appup & relup from the vsn that is currently"},
      {     tar, undefined,  undefined,                 string, "Tar file (required)"}
     ].
 
@@ -177,6 +180,6 @@ escript_opt_specs(Task) ->
 -spec task_opts(Task :: string()) -> [OptKey :: atom()].
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
-task_opts("tarup") -> [tar, previous, conf, dir, help];
+task_opts("tarup") -> [tar, previous, conf, dir, help, single];
 task_opts("")      -> [help, task, conf];
 task_opts(_)       -> []. % not supported
