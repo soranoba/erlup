@@ -35,14 +35,19 @@ init(State0) ->
 %%
 %% @private
 main(Args) ->
-    init_log(),
+    ok = application:load(erlup),
+    ok = init_log(),
     case getopt:parse(escript_opt_specs(), Args) of
         {ok, {Options, _}} ->
-            DoHelp  = proplists:get_value(help, Options, false),
+            DoHelp    = proplists:get_value(help, Options, false),
+            DoVersion = proplists:get_value(version, Options, false),
             Task = proplists:get_value(task, Options, ""),
             case escript_opt_specs(Task) of
                 [] ->
                     ?ERROR("Task ~s not found", [Task]), halt(1);
+                _ when DoVersion ->
+                    {ok, V} = application:get_key(erlup, vsn),
+                    io:format("erlup ~s~n", [V]);
                 Specs when DoHelp; Task =:= "" ->
                     case Task =:= "" of
                         true ->
@@ -50,8 +55,7 @@ main(Args) ->
                             providers:help(rebar_state:providers(element(2, init(rebar_state:new()))));
                         false ->
                             getopt:usage(Specs, "erlup" ++ " " ++ Task)
-                    end,
-                    halt(0);
+                    end;
                 _ ->
                     try
                         do_task(Task, Options)
@@ -164,6 +168,7 @@ escript_opt_specs() ->
     [
      {    task, undefined,  undefined,                 string, "Task to run"},
      {    help,        $h,  undefined,              undefined, "Display this help"},
+     { version,        $v,  undefined,              undefined, "Display this version"},
      {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file"},
      { current,        $c,  undefined,                 string, "Vsn of current release"},
      {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
@@ -181,5 +186,5 @@ escript_opt_specs(Task) ->
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
 task_opts("tarup") -> [tar, previous, conf, dir, help, single];
-task_opts("")      -> [help, task, conf];
+task_opts("")      -> [help, task, conf, version];
 task_opts(_)       -> []. % not supported
