@@ -10,26 +10,19 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         main/1, init/1, format_error/1,
+         main/1,
          escript_opt_specs/1,
          do_task/3
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
-%% Exported Functions
+%% 'provider' Callback API
 %%----------------------------------------------------------------------------------------------------------------------
+-export([init/1, do/1, format_error/1]).
 
-%% rebar3 plugins.
-%%
-%% @private
--spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
-init(State0) ->
-    Mods = [
-            erlup_appup,
-            erlup_relup,
-            erlup_tarup
-           ],
-    lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end, {ok, State0}, Mods).
+%%----------------------------------------------------------------------------------------------------------------------
+%% Escript main function
+%%----------------------------------------------------------------------------------------------------------------------
 
 %% escript.
 %%
@@ -46,12 +39,7 @@ main(Args) ->
                 [] ->
                     ?ERROR("Task ~s not found", [Task]), halt(1);
                 _ when DoVersion ->
-                    {ok, V} = application:get_key(erlup, vsn),
-                    AdditionalVsn = case application:get_env(erlup, git_vsn) of
-                                        {ok, GitHash} -> "+build.ref." ++ GitHash;
-                                        undefined     -> ""
-                                    end,
-                    io:format("erlup v~s~s~n", [V, AdditionalVsn]);
+                    print_version();
                 Specs when DoHelp; Task =:= "" ->
                     case Task =:= "" of
                         true ->
@@ -75,13 +63,49 @@ main(Args) ->
     end,
     halt(0).
 
+%%----------------------------------------------------------------------------------------------------------------------
+%% 'provider' Callback Functions
+%%----------------------------------------------------------------------------------------------------------------------
+
+%% rebar3 plugins.
+%%
+%% @private
+-spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
+init(State0) ->
+    Mods = [
+            erlup_appup,
+            erlup_relup,
+            erlup_tarup
+           ],
+    Provider = providers:create([
+                                 {name, erlup},
+                                 {module, ?MODULE},
+                                 {bare, true},
+                                 {deps, []},
+                                 {opts, erlup_rebar3:opts("")},
+                                 {short_desc, "Upgrade tools for Erlang/OTP"}
+                                ]),
+    lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end,
+                {ok, rebar_state:add_provider(State0, Provider)}, Mods).
+
+%% @private
+-spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
+do(State) ->
+    {Opts, _} = rebar_state:command_parsed_args(State),
+
+    case proplists:get_value(version, Opts, false) of
+        true  -> print_version();
+        false -> rebar_prv_help:do(rebar_state:command_args(State, ["erlup"]))
+    end,
+    {ok, State}.
+
 %% @private
 -spec format_error(iodata()) -> iolist().
 format_error(Reason) ->
     io_lib:format("~s", [Reason]).
 
 %%----------------------------------------------------------------------------------------------------------------------
-%% Internal Functions
+%% Other Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
 -spec init_log() -> ok.
@@ -97,6 +121,16 @@ init_log() ->
                        rebar_log:error_level()
                end,
     rebar_log:init(command_line, LogLevel).
+
+-spec print_version() -> ok.
+print_version() ->
+    {ok, V} = application:get_key(erlup, vsn),
+    AdditionalVsn = case application:get_env(erlup, git_vsn) of
+                        {ok, GitHash} -> "+build.ref." ++ GitHash;
+                        undefined     -> ""
+                    end,
+    %% e.g. erlup v0.1.0+build.ref.dac3f469da
+    io:format("erlup v~s~s~n", [V, AdditionalVsn]).
 
 -spec do_task(string(), [{atom(), term()}]) -> ok.
 do_task(Task, Options) ->
