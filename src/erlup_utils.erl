@@ -136,7 +136,8 @@ lookup_current_vsn(Path0) ->
 -spec lookup_include_libs(file:filename()) -> {ok, [{Application :: atom(), Vsn :: string()}]} | {error, string()}.
 lookup_include_libs(RelFile) ->
     case file:consult(RelFile) of
-        {ok, [{release, _, _, AppVsns}]} -> {ok, AppVsns};
+        {ok, [{release, _, _, AppVsns}]} ->
+            {ok, [{element(1, X), element(2, X)} || X <- AppVsns, is_tuple(X)]};
         {ok, _} ->
             {error, "Invalid format. " ++ RelFile};
         {error, Reason} ->
