@@ -47,7 +47,11 @@ main(Args) ->
                     ?ERROR("Task ~s not found", [Task]), halt(1);
                 _ when DoVersion ->
                     {ok, V} = application:get_key(erlup, vsn),
-                    io:format("erlup ~s~n", [V]);
+                    AdditionalVsn = case application:get_env(erlup, git_vsn) of
+                                        {ok, GitHash} -> "+build.ref." ++ GitHash;
+                                        undefined     -> ""
+                                    end,
+                    io:format("erlup v~s~s~n", [V, AdditionalVsn]);
                 Specs when DoHelp; Task =:= "" ->
                     case Task =:= "" of
                         true ->
