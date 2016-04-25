@@ -93,9 +93,10 @@ base_dir(Path) ->
                {"ebin",     "myapp/lib/mymod-vsn/ebin",             "myapp"},
                {"bin",      "myapp/bin",                            "myapp"}
               ],
-    case ?IIF(Ext =:= "", lists:keyfind(Base, 1, Mapping), lists:keyfind(Ext, 1, Mapping)) of
-        false when Ext =/= "" -> error({not_support_extension, Ext}, [Path]);
-        false                 -> Path;
+    IsDir = ?IIF(filelib:is_file(Path), filelib:is_dir(Path), Ext =:= ""),
+    case ?IIF(IsDir, lists:keyfind(Base, 1, Mapping), lists:keyfind(Ext, 1, Mapping)) of
+        false when IsDir -> Path;
+        false            -> error({not_support_extension, Ext}, [Path]);
         {_, F, B} ->
             lists:foldl(fun(_, Acc) -> filename:dirname(Acc) end,
                         AbsPath, lists:seq(1, length(filename:split(F)) - length(filename:split(B))))
@@ -104,7 +105,7 @@ base_dir(Path) ->
 %% @doc Find .rel files in the directories.
 -spec find_rels([Dir :: file:filename_all()]) -> [{RelName :: string(), Vsn :: string(), file:filename_all()}].
 find_rels(Dirs) ->
-    Ret = lists:foldl(fun(Dir, Acc) ->
+    Ret = lists:foldr(fun(Dir, Acc) ->
                               Wildcard = filename:join([base_dir(Dir), "releases", "*", "*.rel"]),
                               lists:filtermap(fun(Path) ->
                                                       case file:consult(Path) of
@@ -115,7 +116,7 @@ find_rels(Dirs) ->
                                                       end
                                               end, filelib:wildcard(Wildcard)) ++ Acc
                       end, [], Dirs),
-    lists:ukeysort(3, Ret).
+    lists:ukeysort(2, Ret).
 
 %% @doc Lookup the current version of a release that given directory is belongs.
 -spec lookup_current_vsn(file:filename_all()) -> {ok, Vsn :: string()} | {error, string()}.
@@ -135,7 +136,8 @@ lookup_current_vsn(Path0) ->
 -spec lookup_include_libs(file:filename()) -> {ok, [{Application :: atom(), Vsn :: string()}]} | {error, string()}.
 lookup_include_libs(RelFile) ->
     case file:consult(RelFile) of
-        {ok, [{release, _, _, AppVsns}]} -> {ok, AppVsns};
+        {ok, [{release, _, _, AppVsns}]} ->
+            {ok, [{element(1, X), element(2, X)} || X <- AppVsns, is_tuple(X)]};
         {ok, _} ->
             {error, "Invalid format. " ++ RelFile};
         {error, Reason} ->

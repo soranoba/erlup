@@ -11,3 +11,4 @@ rel/example_project
 _build
 .rebar3
 erlup
+_checkouts

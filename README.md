@@ -10,6 +10,7 @@ It is a tool to support the upgrade and downgrade of OTP application.
 
 1. Automatic generation of the appup files. [See also](doc/appup.md).
 2. Automatic generation of the relup file. [See also](doc/relup.md).
+3. Create a rel file in the tar file for the upgrade / downgrade. [See also](doc/tarup.md)
 
 Some of the library already exists, but they has many defects.  
 For example, supporting downgrade and create the more safety appup.  

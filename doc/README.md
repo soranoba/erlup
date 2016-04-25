@@ -5,6 +5,7 @@ erlup
 
 - <a href="appup.md">appup</a>
 - <a href="relup.md">relup</a>
+- <a href="tarup.md">tarup</a>
 
 ## Log level
 

@@ -114,7 +114,7 @@ rewrite_appups([{App, ToVsn, ToEbinDir} | ToRest], From, State0) ->
             AppupPath = filename:join(ToEbinDir, atom_to_list(App) ++ ".appup"),
             {Up, Down} = case file:consult(AppupPath) of
                              {ok, [{ToVsn, Up0, Down0}]} when is_list(Up0), is_list(Down0) ->
-                                 %% TODO: match pattern. not override mode.
+                                 %% NOTE: If an exact match, delete here, because want to overwrite.
                                  {proplists:delete(FromVsn, Up0), proplists:delete(FromVsn, Down0)};
                              {ok, _} ->
                                  ?WARN("the appup (~s) is invalid format. to overwrite.", [AppupPath]),
@@ -122,15 +122,38 @@ rewrite_appups([{App, ToVsn, ToEbinDir} | ToRest], From, State0) ->
                              _ ->
                                  {[], []}
                          end,
-            Up2   = [{FromVsn, Instructions = application_instructions(ToEbinDir, FromEbinDir, State)} | Up],
-            Down2 = [{FromVsn, revert_instructions(Instructions, State)} | Down],
-            case file:write_file(AppupPath, format_appup(ToVsn, Up2, Down2)) of
-                ok              -> ok;
-                {error, Reason} -> ?throw(file:format_error(Reason) ++ " " ++ AppupPath)
+            DoRewrite = find_appup_instructions(FromVsn, Up) =/= error
+                andalso find_appup_instructions(FromVsn, Down) =/= error,
+            case DoRewrite of
+                true ->
+                    Up2   = [{FromVsn, Instructions = application_instructions(ToEbinDir, FromEbinDir, State)} | Up],
+                    Down2 = [{FromVsn, revert_instructions(Instructions, State)} | Down],
+                    case file:write_file(AppupPath, format_appup(ToVsn, Up2, Down2)) of
+                        ok              -> ok;
+                        {error, Reason} -> ?throw(file:format_error(Reason) ++ " " ++ AppupPath)
+                    end,
+                    ?INFO("rewrite the appup (~s).", [AppupPath]);
+                false ->
+                    ?INFO("Skip that rewrite the appup (~s), because vsn is already exists.", [AppupPath])
             end,
-            ?INFO("rewrite the appup (~s).", [AppupPath]),
             rewrite_appups(ToRest, From, State)
     end.
+
+%% @doc Find the instructions that is matching vsn pattern.
+-spec find_appup_instructions(Vsn, [{VsnPattern, [instruction()]}]) -> {ok, [instruction()]} | error when
+      Vsn          :: string(),
+      VsnPattern   :: binary() | string().
+find_appup_instructions(_, []) ->
+    error;
+find_appup_instructions(Vsn, [{VsnPattern, Instructions} | Rest]) when is_binary(VsnPattern) ->
+    case re:run(Vsn, VsnPattern) of
+        nomatch    -> find_appup_instructions(Vsn, Rest);
+        {match, _} -> {ok, Instructions}
+    end;
+find_appup_instructions(Vsn, [{VsnPattern, Instructions} | _]) when Vsn =:= VsnPattern ->
+    {ok, Instructions};
+find_appup_instructions(Vsn, [_ | Rest]) ->
+    find_appup_instructions(Vsn, Rest).
 
 %% @doc Given instructions at the time of upgrade, returns instructions at the time of downgrade.
 -spec revert_instructions([instruction()], erlup_state:t()) -> [instruction()].

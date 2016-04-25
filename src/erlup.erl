@@ -10,38 +10,36 @@
 %% Exported API
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
-         main/1, init/1, format_error/1,
+         main/1,
          escript_opt_specs/1,
          do_task/3
         ]).
 
 %%----------------------------------------------------------------------------------------------------------------------
-%% Exported Functions
+%% 'provider' Callback API
 %%----------------------------------------------------------------------------------------------------------------------
+-export([init/1, do/1, format_error/1]).
 
-%% rebar3 plugins.
-%%
-%% @private
--spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
-init(State0) ->
-    Mods = [
-            erlup_appup,
-            erlup_relup
-           ],
-    lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end, {ok, State0}, Mods).
+%%----------------------------------------------------------------------------------------------------------------------
+%% Escript main function
+%%----------------------------------------------------------------------------------------------------------------------
 
 %% escript.
 %%
 %% @private
 main(Args) ->
-    init_log(),
+    ok = application:load(erlup),
+    ok = init_log(),
     case getopt:parse(escript_opt_specs(), Args) of
         {ok, {Options, _}} ->
-            DoHelp  = proplists:get_value(help, Options, false),
+            DoHelp    = proplists:get_value(help, Options, false),
+            DoVersion = proplists:get_value(version, Options, false),
             Task = proplists:get_value(task, Options, ""),
             case escript_opt_specs(Task) of
                 [] ->
                     ?ERROR("Task ~s not found", [Task]), halt(1);
+                _ when DoVersion ->
+                    print_version();
                 Specs when DoHelp; Task =:= "" ->
                     case Task =:= "" of
                         true ->
@@ -49,8 +47,7 @@ main(Args) ->
                             providers:help(rebar_state:providers(element(2, init(rebar_state:new()))));
                         false ->
                             getopt:usage(Specs, "erlup" ++ " " ++ Task)
-                    end,
-                    halt(0);
+                    end;
                 _ ->
                     try
                         do_task(Task, Options)
@@ -66,13 +63,49 @@ main(Args) ->
     end,
     halt(0).
 
+%%----------------------------------------------------------------------------------------------------------------------
+%% 'provider' Callback Functions
+%%----------------------------------------------------------------------------------------------------------------------
+
+%% rebar3 plugins.
+%%
+%% @private
+-spec init(rebar_state:t()) -> {ok, rebar_state:t()}.
+init(State0) ->
+    Mods = [
+            erlup_appup,
+            erlup_relup,
+            erlup_tarup
+           ],
+    Provider = providers:create([
+                                 {name, erlup},
+                                 {module, ?MODULE},
+                                 {bare, true},
+                                 {deps, []},
+                                 {opts, erlup_rebar3:opts("")},
+                                 {short_desc, "Upgrade tools for Erlang/OTP"}
+                                ]),
+    lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end,
+                {ok, rebar_state:add_provider(State0, Provider)}, Mods).
+
+%% @private
+-spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
+do(State) ->
+    {Opts, _} = rebar_state:command_parsed_args(State),
+
+    case proplists:get_value(version, Opts, false) of
+        true  -> print_version();
+        false -> rebar_prv_help:do(rebar_state:command_args(State, ["erlup"]))
+    end,
+    {ok, State}.
+
 %% @private
 -spec format_error(iodata()) -> iolist().
 format_error(Reason) ->
     io_lib:format("~s", [Reason]).
 
 %%----------------------------------------------------------------------------------------------------------------------
-%% Internal Functions
+%% Other Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
 -spec init_log() -> ok.
@@ -88,6 +121,16 @@ init_log() ->
                        rebar_log:error_level()
                end,
     rebar_log:init(command_line, LogLevel).
+
+-spec print_version() -> ok.
+print_version() ->
+    {ok, V} = application:get_key(erlup, vsn),
+    AdditionalVsn = case application:get_env(erlup, git_vsn) of
+                        {ok, GitHash} -> "+build.ref." ++ GitHash;
+                        undefined     -> ""
+                    end,
+    %% e.g. erlup v0.1.0+build.ref.dac3f469da
+    io:format("erlup v~s~s~n", [V, AdditionalVsn]).
 
 -spec do_task(string(), [{atom(), term()}]) -> ok.
 do_task(Task, Options) ->
@@ -118,7 +161,21 @@ do_task(Task, Options, State) when Task =:= "appup"; Task =:= "relup" ->
     case Task of
         "appup" -> erlup_appup:do(Dirs, PreviousVsns, CurrentVsn, State);
         "relup" -> erlup_relup:do(Dirs, PreviousVsns, CurrentVsn, State)
-    end.
+    end;
+do_task("tarup", Options, State) ->
+    Dirs0         = proplists:get_all_values(dir, Options),
+    Dirs          = ?IIF(Dirs0 =:= [], ["."], Dirs0),
+    PreviousVsns0 = proplists:get_all_values(previous, Options),
+    PreviousVsns  = case {PreviousVsns0 =:= [], proplists:get_value(single, Options, false)} of
+                        {true, true}   -> [default_current_vsn(hd(Dirs))];
+                        {false, false} -> PreviousVsns0;
+                        {true, false}  ->
+                            Rels = erlup_utils:find_rels(Dirs),
+                            [Vsn || {_, Vsn, _} <- Rels];
+                        {false, true}  ->
+                            ?throw("Can not be used -p and --single options at the same time")
+                    end,
+    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State).
 
 -spec default_current_vsn(file:filename()) -> string().
 default_current_vsn(Dir) ->
@@ -149,10 +206,13 @@ escript_opt_specs() ->
     [
      {    task, undefined,  undefined,                 string, "Task to run"},
      {    help,        $h,  undefined,              undefined, "Display this help"},
+     { version,        $v,  undefined,              undefined, "Display this version"},
      {    conf, undefined,     "conf", {string, "erlup.conf"}, "Path of configuration file"},
      { current,        $c,  undefined,                 string, "Vsn of current release"},
      {previous,        $p,  undefined,                 string, "Vsns of previous release. (e.g. -p 0.0.1 -p 0.0.2)"},
-     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"}
+     {     dir,        $d,      "dir",                 string, "Release directories (e.g. -d _rel/${APP} -d /tmp/${APP})"},
+     {  single, undefined,   "single",              undefined, "Generates only appup & relup from the vsn that is currently"},
+     {     tar, undefined,  undefined,                 string, "Tar file (required)"}
     ].
 
 -spec escript_opt_specs(string()) -> [getopt:option_spec()].
@@ -163,5 +223,6 @@ escript_opt_specs(Task) ->
 -spec task_opts(Task :: string()) -> [OptKey :: atom()].
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
-task_opts("")      -> [help, task, conf];
+task_opts("tarup") -> [tar, previous, conf, dir, help, single];
+task_opts("")      -> [help, task, conf, version];
 task_opts(_)       -> []. % not supported
