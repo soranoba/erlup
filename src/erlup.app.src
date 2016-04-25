@@ -1,6 +1,6 @@
 {application,erlup,
              [{description,"Upgrade tools for Erlang/OTP. Contains rebar3 plugin and escript."},
-              {vsn,"0.1.0"},
+              {vsn,"0.2.0"},
               {registered,[]},
               {applications,[kernel,stdlib]},
               {maintainers,["Hinagiku Soranoba"]},
