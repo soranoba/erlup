@@ -75,7 +75,8 @@ init(State0) ->
     Mods = [
             erlup_appup,
             erlup_relup,
-            erlup_tarup
+            erlup_tarup,
+            erlup_vsn
            ],
     Provider = providers:create([
                                  {name, erlup},
@@ -175,7 +176,10 @@ do_task("tarup", Options, State) ->
                         {false, true}  ->
                             ?throw("Can not be used -p and --single options at the same time")
                     end,
-    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State).
+    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State);
+do_task("vsn", Options, State) ->
+    Dir = proplists:get_value(dir, Options, "."),
+    erlup_vsn:do(Dir, State).
 
 -spec default_current_vsn(file:filename()) -> string().
 default_current_vsn(Dir) ->
@@ -224,5 +228,6 @@ escript_opt_specs(Task) ->
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
 task_opts("tarup") -> [tar, previous, conf, dir, help, single];
+task_opts("vsn")   -> [conf, dir, help];
 task_opts("")      -> [help, task, conf, version];
 task_opts(_)       -> []. % not supported
