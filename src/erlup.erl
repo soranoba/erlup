@@ -127,10 +127,10 @@ init_log() ->
 print_version() ->
     {ok, V} = application:get_key(erlup, vsn),
     AdditionalVsn = case application:get_env(erlup, git_vsn) of
-                        {ok, GitHash} -> "+build.ref." ++ GitHash;
-                        undefined     -> ""
+                        {ok, {_Tag, Count, [$g | GitHash]}} -> "+build." ++ Count ++ ".ref" ++ GitHash;
+                        _                                   -> ""
                     end,
-    %% e.g. erlup v0.1.0+build.ref.dac3f469da
+    %% e.g. erlup v0.1.0+build.1.refdac3f469da
     io:format("erlup v~s~s~n", [V, AdditionalVsn]).
 
 -spec do_task(string(), [{atom(), term()}]) -> ok.
