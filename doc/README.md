@@ -6,6 +6,7 @@ erlup
 - <a href="appup.md">appup</a>
 - <a href="relup.md">relup</a>
 - <a href="tarup.md">tarup</a>
+- <a href="vsn.md">vsn</a>
 
 ## Log level
 
@@ -15,4 +16,15 @@ So, even if you use the escript, it is possible to specify the log level in the 
 ```bash
 $ QUIET=1 erlup    # only display errors
 $ DEBUG=1 erlup    # show debug output
+```
+
+## Version
+
+When you use erlup which version is not published to hex, version maybe include git hash.
+
+```bash
+$ rebar3 erlup -v                    # version on hex: 0.2.0
+erlup v0.2.0
+$ erlup -v
+erlup v0.2.0+build.3.refebdd68a07e   # git hash: ebdd68a07e
 ```

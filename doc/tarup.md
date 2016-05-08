@@ -9,5 +9,6 @@ Create a rel file in the tar file for the upgrade / downgrade.
 ## Usage
 
 ```
-$ erlup tarup -h     # using escript
+$ rebar3 help erlup tarup   # using rebar3.
+$ erlup tarup -h            # using escript.
 ```
