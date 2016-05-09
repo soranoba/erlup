@@ -8,7 +8,7 @@
 %%----------------------------------------------------------------------------------------------------------------------
 -export([
          new/1,
-         applys/2,
+         applies/2,
          mod_deps/1,
          extra/2,
          set_sedargs/3,
@@ -27,7 +27,7 @@
 
 -record(?MODULE,
         {
-          applys            :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
+          applies           :: [{Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}],
           deps              :: [{module(), ModDeps :: [module()]}],
           extra             :: {UpExtra :: term(), DownExtra :: term()},
           sed_args = []     :: [{Before :: term(), After :: term()}],
@@ -42,16 +42,16 @@
 -spec new([{atom(), term()}]) -> t().
 new(List) ->
     Appup   = proplists:get_value(appup, List, []),
-    Applys  = proplists:get_value(applys, Appup, []),
+    Applies  = proplists:get_value(applies, Appup, []),
     ModDeps = proplists:get_value(deps,   Appup, []),
     Extra   = proplists:get_value(extra,  Appup, {[], []}),
-    #?MODULE{applys = Applys, deps = ModDeps, extra = Extra}.
+    #?MODULE{applies = Applies, deps = ModDeps, extra = Extra}.
 
--spec applys(up | down, t()) -> [{Function :: atom(), Args :: [term()]}].
-applys(up, #?MODULE{applys = Applys, sed_args = SedArgs}) ->
-    [{Function, sed(Args, SedArgs)} || {Function, Args, _} <- Applys];
-applys(down, #?MODULE{applys = Applys, sed_args = SedArgs}) ->
-    [{Function, sed(Args, SedArgs)} || {Function, _, Args} <- Applys].
+-spec applies(up | down, t()) -> [{Function :: atom(), Args :: [term()]}].
+applies(up, #?MODULE{applies = Applies, sed_args = SedArgs}) ->
+    [{Function, sed(Args, SedArgs)} || {Function, Args, _} <- Applies];
+applies(down, #?MODULE{applies = Applies, sed_args = SedArgs}) ->
+    [{Function, sed(Args, SedArgs)} || {Function, _, Args} <- Applies].
 
 -spec mod_deps(t()) -> [{module(), Deps :: [module()]}].
 mod_deps(#?MODULE{deps = Deps}) ->

@@ -43,7 +43,7 @@ In the case of downgrade, it will be executed **before** the module has been loa
 So, it runs on the always new module.
 
 ```erlang
-{appup, [{applys,
+{appup, [{applies,
           [
            {Function :: atom(), UpArgs :: [term()], DownArgs :: [term()]}
           ]}

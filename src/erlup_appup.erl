@@ -172,7 +172,7 @@ revert_instructions([Inst | RestInsts], State, Acc) when element(1, Inst) =:= de
     revert_instructions(RestInsts, State, [setelement(1, Inst, add_module) | Acc]);
 revert_instructions([{apply, {M, F, _}} | RestInsts], State, Acc) ->
     %% {apply, {M, F, A}}: Args changed.
-    A = proplists:get_value(F, erlup_state:applys(down, State)),
+    A = proplists:get_value(F, erlup_state:applies(down, State)),
     revert_instructions(RestInsts, State, [{apply, {M, F, A}} | Acc]);
 revert_instructions([Inst | RestInsts], State, Acc) when
       element(1, Inst) =:= update, element(1, element(3, Inst)) =:= advanced ->
@@ -214,11 +214,11 @@ module_instructions(changed, {Module, ChunkData}, State) ->
             ++ ?IIF(is_special_process(ChunkData),
                     [{update, Module, {advanced, erlup_state:extra(up, State)}, ModDeps}], []),
     ?IIF(Insts =:= [], [{load_module, Module, ModDeps}], Insts)
-        ++ lists:map(fun(X) -> {apply, X} end, get_applys({Module, ChunkData}, State)).
+        ++ lists:map(fun(X) -> {apply, X} end, get_applies({Module, ChunkData}, State)).
 
 %% @doc Get the functions that be called at the time of upgrade.
--spec get_applys({module(), [beam_lib:chunkdata()]}, erlup_state:t()) -> [{module(), Function :: atom(), Args :: term()}].
-get_applys({Module, ChunkData}, State) ->
+-spec get_applies({module(), [beam_lib:chunkdata()]}, erlup_state:t()) -> [{module(), Function :: atom(), Args :: term()}].
+get_applies({Module, ChunkData}, State) ->
     Exports = proplists:get_value(exports, ChunkData, []),
     lists:filter(fun({Function, Args}) when is_list(Args) ->
                          case lists:member({Function, length(Args)}, Exports) of
@@ -226,7 +226,7 @@ get_applys({Module, ChunkData}, State) ->
                              false -> false
                          end;
                     (_) -> false
-                 end, erlup_state:applys(up, State)).
+                 end, erlup_state:applies(up, State)).
 
 %% @doc Return the behaviour modules
 -spec get_behaviour([beam_lib:chunkdata()]) -> [module()].
