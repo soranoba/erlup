@@ -122,19 +122,25 @@ rewrite_appups([{App, ToVsn, ToEbinDir} | ToRest], From, State0) ->
                              _ ->
                                  {[], []}
                          end,
-            DoRewrite = find_appup_instructions(FromVsn, Up) =/= error
-                andalso find_appup_instructions(FromVsn, Down) =/= error,
-            case DoRewrite of
-                true ->
-                    Up2   = [{FromVsn, Instructions = application_instructions(ToEbinDir, FromEbinDir, State)} | Up],
+            case {find_appup_instructions(FromVsn, Up), find_appup_instructions(FromVsn, Down)} of
+                {Res1, Res2} when Res1 =/= error, Res2 =/= error ->
+                    ?INFO("Skip that rewrite the appup (~s), because ~s is already exists.", [AppupPath, FromVsn]);
+                {Res1, Res2} ->
+                    Instructions = case Res1 of
+                                       {ok, Instructions0} -> Instructions0;
+                                       error               ->
+                                           ?IF(Res2 =/= error,
+                                               ?WARN("Down instructions exist, but up instructions doesn't exist. (~s)",
+                                                     [AppupPath])),
+                                           application_instructions(ToEbinDir, FromEbinDir, State)
+                                   end,
+                    Up2   = [{FromVsn, Instructions} | Up],
                     Down2 = [{FromVsn, revert_instructions(Instructions, State)} | Down],
                     case file:write_file(AppupPath, format_appup(ToVsn, Up2, Down2)) of
                         ok              -> ok;
                         {error, Reason} -> ?throw(file:format_error(Reason) ++ " " ++ AppupPath)
                     end,
-                    ?INFO("rewrite the appup (~s).", [AppupPath]);
-                false ->
-                    ?INFO("Skip that rewrite the appup (~s), because vsn is already exists.", [AppupPath])
+                    ?INFO("rewrite the appup (~s).", [AppupPath])
             end,
             rewrite_appups(ToRest, From, State)
     end.
