@@ -25,55 +25,62 @@ groups() ->
 init_per_suite(Config) ->
     os:cmd("cp -r " ++ ?config(data_dir, Config) ++ "* " ++ ?config(priv_dir, Config) ++ "."),
 
-    Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1", "_checkouts"]),
-    Spam2Dir = filename:join([?config(priv_dir, Config), "spam_v2", "_checkouts"]),
-    sh(Spam1Dir, "ln -s " ++ filename:join(?config(data_dir, Config), "../../../erlup") ++ " ."),
-    sh(Spam2Dir, "ln -s " ++ filename:join(?config(data_dir, Config), "../../../erlup") ++ " ."),
-    Config.
+    Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
+    Spam2Dir = filename:join([?config(priv_dir, Config), "spam_v2"]),
+    Spam3Dir = filename:join([?config(priv_dir, Config), "spam_v3"]),
+
+    Erlup = case os:getenv("ERLUP") of
+                ErlupPath when is_list(ErlupPath) -> {erlup, ErlupPath}
+            end,
+    Rebar = case os:getenv("REBAR") of
+                RebarPath when is_list(RebarPath) -> {rebar, RebarPath}
+            end,
+    Dirs  = {dirs, [{1, Spam1Dir}, {2, Spam2Dir}, {3, Spam3Dir}]},
+
+    lists:foreach(fun(Dir) ->
+                          sh(filename:join(Dir, "_checkouts"),
+                             "ln -s " ++ filename:join(?config(data_dir, Config), "../../../erlup") ++ " ."),
+                          sh(Dir, RebarPath ++ " compile")
+                  end, [Spam1Dir, Spam2Dir, Spam3Dir]),
+    [Erlup, Rebar, Dirs | Config].
 
 end_per_suite(Config) ->
     Config.
 
 init_per_group(Group = escript, Config) ->
-    case os:getenv("ERLUP") of
-        Path when is_list(Path) ->
-            [{group, Group}, {command, Path ++ " "} | Config]
-    end;
+    [{group, Group},
+     {command, ?config(erlup, Config) ++ " "} | Config];
 init_per_group(Group = rebar3_plugin, Config) ->
-    case os:getenv("REBAR") of
-        Path when is_list(Path) ->
-            [{group, Group}, {command, Path ++ " erlup "}, {help, Path ++ " help erlup "} | Config]
-    end.
+    [{group, Group},
+     {command, ?config(rebar, Config) ++ " erlup "},
+     {help, ?config(rebar, Config) ++ " help erlup "} | Config].
 
 end_per_group(_, Config) ->
     Config.
 
-init_per_testcase(_, Config) ->
-    case os:getenv("REBAR") of
-        Path when is_list(Path) ->
-            Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
-            Spam2Dir = filename:join([?config(priv_dir, Config), "spam_v2"]),
-            sh(Spam1Dir, Path ++ " compile"),
-            sh(Spam2Dir, Path ++ " compile"),
-            Config
-    end.
+init_per_testcase(TestCase, Config) ->
+    case lists:member(TestCase, [help, version]) of
+        true  -> ok;
+        false ->
+            Rebar = ?config(rebar, Config),
+            lists:foreach(fun({_, Dir}) ->
+                                  sh(Dir, Rebar ++ " release")
+                          end, ?config(dirs, Config))
+    end,
+    Config.
 
 end_per_testcase(_, Config) ->
-    case os:getenv("REBAR") of
-        Path when is_list(Path) ->
-            Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
-            Spam2Dir = filename:join([?config(priv_dir, Config), "spam_v2"]),
-            sh(Spam1Dir, Path ++ " clean -a"),
-            sh(Spam2Dir, Path ++ " clean -a"),
-            Config
-    end.
+    lists:foreach(fun({_, Dir}) ->
+                          sh(Dir, "rm -r _build/default/rel")
+                  end, ?config(dirs, Config)),
+    Config.
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Test Cases
 %%----------------------------------------------------------------------------------------------------------------------
 
 help(Config) ->
-    Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
+    Spam1Dir = ?config(1, ?config(dirs, Config)),
 
     {ok, State} = erlup:init(rebar_state:new()),
     Commands    = lists:filtermap(fun(P) ->
@@ -103,10 +110,10 @@ help(Config) ->
     lists:foreach(Fun, Commands).
 
 version(Config) ->
-    Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
+    Spam1Dir = ?config(1, ?config(dirs, Config)),
     Command  = ?config(command, Config) ++ "-v 2>/dev/null",
     ct:log("$ ~s~n~s", [Command, Ret = sh(Spam1Dir, Command)]),
-    ?assertMatch({match, _}, re:run(Ret, "erlup v[0-9\.]*.*")).
+    ?assertMatch({match, _}, re:run(Ret, "erlup v[0-9]\.[0-9]\.[0-9].*")).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
