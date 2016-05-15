@@ -11,6 +11,7 @@ It is a tool to support the upgrade and downgrade of OTP application.
 1. Automatic generation of the appup files. [See also](doc/appup.md).
 2. Automatic generation of the relup file. [See also](doc/relup.md).
 3. Create a rel file in the tar file for the upgrade / downgrade. [See also](doc/tarup.md)
+4. Display the release vsn. [See also](doc/vsn.md).
 
 Some of the library already exists, but they has many defects.  
 For example, supporting downgrade and create the more safety appup.  
@@ -41,7 +42,7 @@ $ rebar3 erlup relup    # generate the relup file  (v0.0.1 -> v0.0.2)
 ```bash
 $ git clone https://github.com/soranoba/erlup
 $ cd erlup
-$ make
+$ make escriptize
 ```
 
 ```bash

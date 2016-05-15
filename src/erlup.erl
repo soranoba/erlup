@@ -75,20 +75,15 @@ init(State0) ->
     Mods = [
             erlup_appup,
             erlup_relup,
-            erlup_tarup
+            erlup_tarup,
+            erlup_vsn
            ],
-    Provider = providers:create([
-                                 {name, erlup},
-                                 {module, ?MODULE},
-                                 {bare, true},
-                                 {deps, []},
-                                 {opts, erlup_rebar3:opts("")},
-                                 {short_desc, "Upgrade tools for Erlang/OTP"}
-                                ]),
     lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end,
-                {ok, rebar_state:add_provider(State0, Provider)}, Mods).
+                {ok, State0}, Mods).
 
 %% @private
+%%
+%% TODO: rebar3 erlup -v
 -spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
 do(State) ->
     {Opts, _} = rebar_state:command_parsed_args(State),
@@ -126,10 +121,10 @@ init_log() ->
 print_version() ->
     {ok, V} = application:get_key(erlup, vsn),
     AdditionalVsn = case application:get_env(erlup, git_vsn) of
-                        {ok, GitHash} -> "+build.ref." ++ GitHash;
-                        undefined     -> ""
+                        {ok, {_Tag, Count, [$g | GitHash]}} -> "+build." ++ Count ++ ".ref" ++ GitHash;
+                        _                                   -> ""
                     end,
-    %% e.g. erlup v0.1.0+build.ref.dac3f469da
+    %% e.g. erlup v0.1.0+build.1.refdac3f469da
     io:format("erlup v~s~s~n", [V, AdditionalVsn]).
 
 -spec do_task(string(), [{atom(), term()}]) -> ok.
@@ -175,7 +170,10 @@ do_task("tarup", Options, State) ->
                         {false, true}  ->
                             ?throw("Can not be used -p and --single options at the same time")
                     end,
-    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State).
+    erlup_tarup:do(Dirs, PreviousVsns, proplists:get_value(tar, Options, ""), State);
+do_task("vsn", Options, State) ->
+    Dir = proplists:get_value(dir, Options, "."),
+    erlup_vsn:do(Dir, State).
 
 -spec default_current_vsn(file:filename()) -> string().
 default_current_vsn(Dir) ->
@@ -224,5 +222,6 @@ escript_opt_specs(Task) ->
 task_opts("appup") -> [current, previous, conf, dir, help];
 task_opts("relup") -> [current, previous, conf, dir, help];
 task_opts("tarup") -> [tar, previous, conf, dir, help, single];
+task_opts("vsn")   -> [conf, dir, help];
 task_opts("")      -> [help, task, conf, version];
 task_opts(_)       -> []. % not supported
