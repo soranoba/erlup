@@ -4,7 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(ALL_TESTS, [help, version, appup]).
+-define(ALL_TESTS, [help, version, appup, relup]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'Common Test' Callback Functions
@@ -18,7 +18,7 @@ all() ->
 
 groups() ->
     [
-     {escript,       [], ?ALL_TESTS},
+     {escript,       [], ?ALL_TESTS ++ [vsn]},
      {rebar3_plugin, [], ?ALL_TESTS -- [version]}
     ].
 
@@ -138,6 +138,23 @@ appup(Config) ->
                           ct:log("$ cat ~s~n~p", [F, GotTerms]),
                           ?assertEqual(ExpectedTerms, GotTerms)
                   end, Files).
+
+relup(Config) ->
+    Res1 = sh(Dir = ?config(3, ?config(dirs, Config)),
+             Command1 = ?config(command, Config) ++ "appup " ++ ?config(d, Config)),
+    ct:log("$ ~s~n~s", [Command1, Res1]),
+    Res2 = sh(Dir, Command2 = ?config(command, Config) ++ "relup " ++ ?config(d, Config)),
+    ct:log("$ ~s~n~s", [Command2, Res2]),
+    Files = filelib:wildcard(filename:join([Dir, "_build", "default", "rel", "spam", "releases", "**/relup"])),
+    ?assertEqual(1, length(Files)).
+
+vsn(Config) ->
+    lists:foreach(fun({N, Dir0}) ->
+                          Dir = filename:join([Dir0, "_build", "default", "rel", "spam"]),
+                          Res = sh(Dir, Command = ?config(command, Config) ++ "vsn -d " ++ Dir),
+                          ct:log("$ ~s~n~s", [Command, Res]),
+                          ?assertMatch([_], find_lines(Res, "0\.0\." ++ integer_to_list(N)))
+                  end, ?config(dirs, Config)).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
