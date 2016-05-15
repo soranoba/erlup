@@ -23,8 +23,8 @@ $ DEBUG=1 erlup    # show debug output
 When you use erlup which version is not published to hex, version maybe include git hash.
 
 ```bash
-$ rebar3 erlup -v                    # version on hex: 0.2.0
+$ erlup -v                           # 0.2.0 (on hex), v0.2.0 (on github)
 erlup v0.2.0
 $ erlup -v
-erlup v0.2.0+build.3.refebdd68a07e   # git hash: ebdd68a07e
+erlup v0.2.0+build.3.refebdd68a07e   # The version in development. git hash : ebdd68a07e
 ```
