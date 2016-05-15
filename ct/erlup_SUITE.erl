@@ -4,7 +4,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--define(ALL_TESTS, [help, version]).
+-define(ALL_TESTS, [help, version, appup]).
 
 %%----------------------------------------------------------------------------------------------------------------------
 %% 'Common Test' Callback Functions
@@ -19,11 +19,11 @@ all() ->
 groups() ->
     [
      {escript,       [], ?ALL_TESTS},
-     {rebar3_plugin, [], ?ALL_TESTS}
+     {rebar3_plugin, [], ?ALL_TESTS -- [version]}
     ].
 
 init_per_suite(Config) ->
-    os:cmd("cp -r " ++ ?config(data_dir, Config) ++ "* " ++ ?config(priv_dir, Config) ++ "."),
+    os:cmd("cp -r " ++ ?config(data_dir, Config) ++ "spam_* " ++ ?config(priv_dir, Config) ++ "."),
 
     Spam1Dir = filename:join([?config(priv_dir, Config), "spam_v1"]),
     Spam2Dir = filename:join([?config(priv_dir, Config), "spam_v2"]),
@@ -49,11 +49,18 @@ end_per_suite(Config) ->
 
 init_per_group(Group = escript, Config) ->
     [{group, Group},
-     {command, ?config(erlup, Config) ++ " "} | Config];
+     {command, ?config(erlup, Config) ++ " "},
+     {d, lists:foldl(fun({_, Dir}, Acc) ->
+                             Acc ++ " -d "
+                                 ++ filename:join([Dir, "_build", "default", "rel", "spam"])
+                     end, "", lists:reverse(?config(dirs, Config)))}
+     | Config];
 init_per_group(Group = rebar3_plugin, Config) ->
     [{group, Group},
      {command, ?config(rebar, Config) ++ " erlup "},
-     {help, ?config(rebar, Config) ++ " help erlup "} | Config].
+     {help, ?config(rebar, Config) ++ " help erlup "},
+     {d, ""}
+     | Config].
 
 end_per_group(_, Config) ->
     Config.
@@ -62,9 +69,12 @@ init_per_testcase(TestCase, Config) ->
     case lists:member(TestCase, [help, version]) of
         true  -> ok;
         false ->
-            Rebar = ?config(rebar, Config),
+            Rebar            = ?config(rebar, Config),
+            RecentVersionDir = ?config(3, ?config(dirs, Config)),
             lists:foreach(fun({_, Dir}) ->
-                                  sh(Dir, Rebar ++ " release")
+                                  sh(Dir, Rebar ++ " release"),
+                                  Rel = "/_build/default/rel",
+                                  sh(RecentVersionDir ++ Rel, "cp -r " ++ Dir ++ Rel ++ "/* .")
                           end, ?config(dirs, Config))
     end,
     Config.
@@ -115,12 +125,27 @@ version(Config) ->
     ct:log("$ ~s~n~s", [Command, Ret = sh(Spam1Dir, Command)]),
     ?assertMatch({match, _}, re:run(Ret, "erlup v[0-9]\.[0-9]\.[0-9].*")).
 
+appup(Config) ->
+    Res = sh(Dir = ?config(3, ?config(dirs, Config)),
+             Command = ?config(command, Config) ++ "appup " ++ ?config(d, Config)),
+    ct:log("$ ~s~n~s", [Command, Res]),
+    Files = filelib:wildcard(filename:join([Dir, "_build", "default", "rel", "spam", "lib", "**/*.appup"])),
+    ?assertEqual(3, length(Files)), % bbmustache, spam, spam_2
+    lists:foreach(fun(F) ->
+                          ExpectedAppup = filename:join(?config(data_dir, Config), filename:basename(F)),
+                          {ok, GotTerms}      = file:consult(F),
+                          {ok, ExpectedTerms} = file:consult(ExpectedAppup),
+                          ct:log("$ cat ~s~n~p", [F, GotTerms]),
+                          ?assertEqual(ExpectedTerms, GotTerms)
+                  end, Files).
+
 %%----------------------------------------------------------------------------------------------------------------------
 %% Internal Functions
 %%----------------------------------------------------------------------------------------------------------------------
 
 sh(Dir, Command) ->
     {ok, Cwd} = file:get_cwd(),
+    ok  = filelib:ensure_dir(filename:join(Dir, "dummy")),
     ok  = file:set_cwd(Dir),
     Ret = os:cmd(Command),
     ok  = file:set_cwd(Cwd),

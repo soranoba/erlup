@@ -78,18 +78,12 @@ init(State0) ->
             erlup_tarup,
             erlup_vsn
            ],
-    Provider = providers:create([
-                                 {name, erlup},
-                                 {module, ?MODULE},
-                                 {bare, true},
-                                 {deps, []},
-                                 {opts, erlup_rebar3:opts("")},
-                                 {short_desc, "Upgrade tools for Erlang/OTP"}
-                                ]),
     lists:foldl(fun(Mod, {ok, State}) -> Mod:init(State) end,
-                {ok, rebar_state:add_provider(State0, Provider)}, Mods).
+                {ok, State0}, Mods).
 
 %% @private
+%%
+%% TODO: rebar3 erlup -v
 -spec do(rebar_state:t()) -> {ok, rebar_state:t()} | {error, string()}.
 do(State) ->
     {Opts, _} = rebar_state:command_parsed_args(State),
