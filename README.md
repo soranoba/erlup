@@ -1,6 +1,6 @@
 erlup
 ========
-[![Build Status](https://travis-ci.org/soranoba/erlup.svg?branch=master)](https://travis-ci.org/soranoba/erlup)
+[![Build Status](https://travis-ci.com/soranoba/erlup.svg?branch=master)](https://travis-ci.com/soranoba/erlup)
 [![hex.pm version](https://img.shields.io/hexpm/v/erlup.svg)](https://hex.pm/packages/erlup)
 
 Upgrade tools for Erlang/OTP. Contains rebar3 plugin and escript.
@@ -13,8 +13,8 @@ It is a tool to support the upgrade and downgrade of OTP application.
 3. Create a rel file in the tar file for the upgrade / downgrade. [See also](doc/tarup.md)
 4. Display the release vsn. [See also](doc/vsn.md).
 
-Some of the library already exists, but they has many defects.  
-For example, supporting downgrade and create the more safety appup.  
+Some of the library already exists, but they has many defects.
+For example, supporting downgrade and create the more safety appup.
 If you want to know in detail, please refer to the [documentation](doc) of each command.
 
 ## Usage
