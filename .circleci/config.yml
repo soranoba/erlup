@@ -22,6 +22,7 @@ workflows:
           matrix:
             parameters:
               version:
+                - "24"
                 - "23.3"
                 - "22.3"
                 - "21.3"
