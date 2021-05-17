@@ -130,13 +130,19 @@ appup(Config) ->
              Command = ?config(command, Config) ++ "appup " ++ ?config(d, Config)),
     ct:log("$ ~s~n~s", [Command, Res]),
     Files = filelib:wildcard(filename:join([Dir, "_build", "default", "rel", "spam", "lib", "**/*.appup"])),
-    ?assertEqual(3, length(Files)), % bbmustache, spam, spam_2
+    Filenames = lists:usort([filename:basename(F, ".appup") || F <- Files]),
+    ?assertEqual(["bbmustache", "kernel", "sasl", "spam", "spam_2", "stdlib"], Filenames),
     lists:foreach(fun(F) ->
-                          ExpectedAppup = filename:join(?config(data_dir, Config), filename:basename(F)),
-                          {ok, GotTerms}      = file:consult(F),
-                          {ok, ExpectedTerms} = file:consult(ExpectedAppup),
-                          ct:log("$ cat ~s~n~p", [F, GotTerms]),
-                          ?assertEqual(ExpectedTerms, GotTerms)
+                          case lists:member(F, ["bbmustache", "spam", "spam_2"]) of
+                              true ->
+                                  ExpectedAppup = filename:join(?config(data_dir, Config), filename:basename(F)),
+                                  {ok, GotTerms}      = file:consult(F),
+                                  {ok, ExpectedTerms} = file:consult(ExpectedAppup),
+                                  ct:log("$ cat ~s~n~p", [F, GotTerms]),
+                                  ?assertEqual(ExpectedTerms, GotTerms);
+                              false ->
+                                  ok
+                          end
                   end, Files).
 
 relup(Config) ->
